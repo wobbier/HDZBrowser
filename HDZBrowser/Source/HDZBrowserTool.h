@@ -1,6 +1,7 @@
 #pragma once
 #include <Pointers.h>
 #include "Tool.h"
+#include "Panels\AssetListPanel.h"
 
 class HDZBrowserTool
     : public Tool
@@ -13,4 +14,5 @@ public:
     void OnStart() override;
 
 private:
+    AssetListPanel AssetPanel;
 };

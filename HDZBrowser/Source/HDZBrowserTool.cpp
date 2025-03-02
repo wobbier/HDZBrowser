@@ -36,6 +36,7 @@ void HDZBrowserTool::OnUpdate()
 //        HUB::ShowOpenFilePrompt( m_window->GetWindowPtr() );
 //    }
 //#endif
+    AssetPanel.Draw();
 
     static bool showDemo = true;
     ImGui::ShowDemoWindow( &showDemo );
