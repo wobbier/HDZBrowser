@@ -7,6 +7,7 @@
 #include "Core\Assert.h"
 #include <algorithm>
 #include "Path.h"
+#include "CLog.h"
 
 namespace HDZUtils
 {
@@ -239,6 +240,7 @@ namespace HDZUtils
         int bmp_count = 0;
         std::string wav_filename;
         size_t wavPos = 0;
+        size_t character_num = 0;
 
         std::string CharacterID;
         HeadDef* CurrentHeadDef = nullptr;
@@ -254,7 +256,7 @@ namespace HDZUtils
                     break;
                 }
                 wavPos = pos;
-                wav_filename = "Assets/RAW/AUDIO/" + std::to_string(wav_count++) + "_" + GetCharacterID(CurrentHeadDef->RawID) + ".wav";
+                wav_filename = "Assets/RAW/AUDIO/" + std::to_string( wav_count++ ) + "_" + GetCharacterID( CurrentHeadDef->RawID ) + ".wav";
                 std::ofstream output( wav_filename, std::ios::binary );
                 if( !output )
                 {
@@ -273,56 +275,76 @@ namespace HDZUtils
             }
 
             std::string textureOutput = std::string( "Assets/RAW/TEXTURES/" + std::to_string( bmp_count ) + ".bmp" );
-            if( extractAndWriteBMP( buffer, pos, textureOutput ))
+            if( extractAndWriteBMP( buffer, pos, textureOutput ) )
             {
                 string_output << '[' << pos << "] Exported Texture: " << textureOutput << "\n";
                 CurrentHeadDef->HeadPortraits.push_back( textureOutput );
                 bmp_count++;
             }
-            {
-                // Check for printable ASCII strings
-                size_t start = pos;
-                while( pos < buffer.size() && is_printable_char( buffer[pos] ) )
-                {
-                    ++pos;
-                }
-                if( pos - start > 10 )
-                {
-                    // Consider a valid string if it's at least 10 characters long
-                    std::string extracted_string( buffer.begin() + start, buffer.begin() + pos );
-                    bool isStandardExpectation = ( std::isspace( extracted_string[0] ) && std::isupper( extracted_string[1] ) && std::islower( extracted_string[3] ) );
-                    bool isDifferent = ( std::isspace( extracted_string[0] ) && std::isupper( extracted_string[1] ) && extracted_string[3] == '.' );
-                    bool USSoldier = ( extracted_string.find("U.S.") != std::string::npos );
 
-                    //if( ( isDifferent || isStandardExpectation ) && hasRepeatingWord )
-                    if( isStandardExpectation || isDifferent || USSoldier )
+            // This could be a header to a head entry?
+            if( buffer[pos] == 0x4A && buffer[pos + 0xB0] == 0x48 )
+            {
+                if( buffer[pos + 1] == 0x00 && buffer[pos + 2] == 0x00 && buffer[pos + 3] == 0x00 && buffer[pos + 4] == 0x00 && buffer[pos + 5] == 0x00 )
+                {
+                    size_t characterBinOutputEnd = ( pos + 5000 > buffer.size() ) ? buffer.size() : pos + 5000;
+                    writeBytesToFile( buffer, pos, characterBinOutputEnd, "Assets/RAW/BIN/" + std::to_string( character_num ) + ".bin" );
+
+                    // Check for printable ASCII strings
+                    size_t start = pos + 0xCB;
+                    size_t end = start;
+                    while( end < buffer.size() && is_printable_char( buffer[end] ) )
                     {
-                        bool hasRepeatingWord = isFirstWordRepeated( extracted_string );
-                        // Filter for a real character ID
-                        std::string realName = GetCharacterID( extracted_string );
-                        CharacterID = extracted_string;
-                        if( !realName.empty() || hasRepeatingWord )
+                        ++end;
+                    }
+                    if( end - start > 10 )
+                    {
+                        // Consider a valid string if it's at least 10 characters long
+                        std::string extracted_string( buffer.begin() + start, buffer.begin() + end );
+                        bool isStandardExpectation = ( std::isspace( extracted_string[0] ) && std::isupper( extracted_string[1] ) && std::islower( extracted_string[3] ) );
+                        bool isDifferent = ( std::isspace( extracted_string[0] ) && std::isupper( extracted_string[1] ) && extracted_string[3] == '.' );
+                        bool USSoldier = ( extracted_string.find( "U.S." ) != std::string::npos );
+                        //if( ( isDifferent || isStandardExpectation ) && hasRepeatingWord )
+                        //if( isStandardExpectation || isDifferent || USSoldier )
                         {
-                            std::cout << "Found string: " << extracted_string << "\n\n";
-                            string_output << '[' << start << ']' << extracted_string << "\n";
-                            HeadDef newDef;
-                            newDef.RawID = extracted_string;
-                            newDef.ID = ( realName.empty() && hasRepeatingWord ) ? extracted_string : realName;
-                            outHeadList.push_back( std::move( newDef ) );
-                            CurrentHeadDef = &outHeadList.back();
-                        }
-                        else
-                        {
-                            HeadDef newDef;
-                            newDef.RawID = extracted_string;
-                            newDef.ID = extracted_string;
-                            outDeadHeadList.push_back( std::move( newDef ) );
-                            CurrentHeadDef = &outDeadHeadList.back();
+                            bool hasRepeatingWord = isFirstWordRepeated( extracted_string );
+                            // Filter for a real character ID
+                            std::string realName = GetCharacterID( extracted_string );
+                            CharacterID = extracted_string;
+                            if( !realName.empty() || hasRepeatingWord )
+                            {
+                                std::cout << "Found string: " << extracted_string << "\n\n";
+                                string_output << '[' << start << ']' << extracted_string << "\n";
+                                HeadDef newDef;
+                                newDef.RawID = extracted_string;
+                                newDef.ID = ( realName.empty() && hasRepeatingWord ) ? extracted_string : realName;
+                                outHeadList.push_back( std::move( newDef ) );
+                                CurrentHeadDef = &outHeadList.back();
+                            }
+                            else
+                            {
+                                HeadDef newDef;
+                                newDef.RawID = extracted_string;
+                                newDef.ID = extracted_string;
+                                outDeadHeadList.push_back( std::move( newDef ) );
+                                string_output << '[' << character_num << ']' << "NOT FOUND CHARACTER STRING BIN:" << extracted_string << "\n";
+                                CurrentHeadDef = &outDeadHeadList.back();
+                            }
+                            CurrentHeadDef->CharacterIndex = character_num;
                         }
                     }
+                    else
+                    {
+                        string_output << '[' << character_num << ']' << " CHARACTER STRING SIZE TOO SMALL\n";
+                    }
+                    character_num++;
                 }
-                ++pos;
+                else
+                {
+                    // just a coincidence 
+                }
             }
+            ++pos;
         }
         string_output.close();
     }
@@ -363,7 +385,7 @@ namespace HDZUtils
                     break;
                 }
                 wavPos = pos;
-                wav_filename = "Assets/RAW/AUDIO/" + inMapPath.GetFileNameString(false) + "_" + std::to_string( wav_count++ ) + ".wav";
+                wav_filename = "Assets/RAW/AUDIO/" + inMapPath.GetFileNameString( false ) + "_" + std::to_string( wav_count++ ) + ".wav";
                 std::ofstream output( wav_filename, std::ios::binary );
                 if( !output )
                 {

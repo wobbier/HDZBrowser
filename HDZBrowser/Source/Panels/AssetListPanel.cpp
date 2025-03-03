@@ -5,7 +5,8 @@
 void DrawHeadItem( HeadDef& inHead )
 {
     ImGuiTreeNodeFlags node_flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
-    if( ImGui::TreeNodeEx( inHead.ID.c_str(), node_flags ) )
+    std::string headerWithIndex = std::to_string( inHead.CharacterIndex ) + ": " + inHead.ID;
+    if( ImGui::TreeNodeEx( headerWithIndex.c_str(), node_flags ) )
     {
         for( auto& child : inHead.AssociatedAudioFiles )
         {
