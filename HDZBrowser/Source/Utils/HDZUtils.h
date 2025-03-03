@@ -158,7 +158,7 @@ namespace HDZUtils
         // Validate BMP pixel data offset
         if( fileHeader.bfOffBits >= data.size() )
         {
-            std::cerr << "Invalid pixel data offset!\n";
+            //std::cerr << "Invalid pixel data offset!\n";
             return false;
         }
 
@@ -194,14 +194,9 @@ namespace HDZUtils
 
     std::string GetCharacterID( std::string& inCharacterString )
     {
-        size_t start = inCharacterString.find_first_not_of( ' ' );
-        if( start == std::string::npos ) return "";
-
-        std::string trimmed = inCharacterString.substr( start );
-
-        for( size_t i = 1; i < trimmed.size(); ++i )
+        for( size_t i = 1; i < inCharacterString.size(); ++i )
         {
-            std::string prefix = trimmed.substr( 0, i );
+            std::string prefix = inCharacterString.substr( 0, i );
             std::string upper_prefix = prefix;
 
             for( char& c : upper_prefix )
@@ -209,7 +204,7 @@ namespace HDZUtils
                 c = std::toupper( static_cast<unsigned char>( c ) );
             }
 
-            if( trimmed.compare( i, upper_prefix.size(), upper_prefix ) == 0 )
+            if( inCharacterString.compare( i, upper_prefix.size(), upper_prefix ) == 0 )
             {
                 return prefix;
             }

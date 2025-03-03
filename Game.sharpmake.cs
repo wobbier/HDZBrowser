@@ -21,11 +21,14 @@ public class SharpGameSolution : BaseGameSolution
         : base()
     {
         Name = "HDZBrowser";
-
+        ClearTargets();
         Globals.FMOD_Win64_Dir = "C:/Program Files (x86)/FMOD SoundSystem/FMOD Studio API Windows/";
         Globals.FMOD_macOS_Dir = Util.GetCurrentSharpmakeFileInfo() + "/../ThirdParty/FMOD Programmers API/";
         Globals.MONO_Win64_Dir = string.Empty;
         Globals.IsPhysicsEnabled3D = false;
+        Globals.IsUWPEnabled = false;
+        Globals.IsUltralightEnabled = false;
+        AddTargets(CommonTarget.GetDefaultTargets());
     }
 
     public override void ConfigureAll(Solution.Configuration conf, CommonTarget target)

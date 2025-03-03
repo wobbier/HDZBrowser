@@ -1,0 +1,97 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-2022]
+        buildconfig: [Editor]
+        configuration:
+          - Debug
+          - Release
+          - Retail
+        include:
+          - os: windows-2022
+            shell: cmd
+            compiler: cl
+            target: Windows
+
+    steps:
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v2
+        with:
+          msbuild-architecture: x64
+        
+      - name: Check out repo
+        uses: actions/checkout@v4.1.1
+        with:
+          submodules: recursive
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "5.0.100"
+
+      - name: Download FMOD from Private URL
+        run: curl -L -o file.zip ${{ secrets.FMOD_WIN64 }}
+
+      - name: Create target directory
+        run: mkdir -p Engine/ThirdParty/FMOD
+
+      - name: Unzip FMOD to ThirdParty folder
+        run: unzip file.zip -d Engine/ThirdParty/FMOD
+        
+      - name: Generate third party solutions
+        shell: cmd
+        run: |
+          cd Engine/ThirdParty
+          call GenerateSolutions.bat
+          cd ../../
+          
+      - name: Generate a new project
+        shell: cmd
+        run: dir && cd Project && dir && call GenerateSolution.bat && cd .. && dir
+
+      - name: Compile Project
+        shell: cmd
+        run: msbuild HDZBrowser.sln /property:Configuration="${{matrix.buildconfig}}_${{matrix.configuration}}"
+
+      - name: Copy Editor Assets
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          robocopy "Assets" ".build\\Editor_Release\\Assets" *.* /w:0 /r:1 /v /E ; if ($lastexitcode -lt 8) { $global:LASTEXITCODE = $null }
+          robocopy "Engine/Tools" ".build\\Editor_Release\\Engine\\Tools" *.* /w:0 /r:1 /v /E ; if ($lastexitcode -lt 8) { $global:LASTEXITCODE = $null }
+
+      - name: Archive Editor
+        if: ${{ matrix.buildconfig == 'Editor' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: HDZBrowser v${{github.run_number}} - ${{matrix.configuration}}
+          path: |
+            .build/Editor_Release/Assets
+            .build/${{matrix.buildconfig}}_${{matrix.configuration}}
+            !.build/${{matrix.buildconfig}}_${{matrix.configuration}}/AppX
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/Tools/**/*.*
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/*.lib
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/*.pdb
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/*.exp
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/*.log
+            .build/${{matrix.buildconfig}}_${{matrix.configuration}}/Tools/Optick.exe
+            .build/${{matrix.buildconfig}}_${{matrix.configuration}}/Tools/Win64/*.*
+
+      - name: Copy Tools Assets
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          robocopy "Engine/Tools/HUB/Assets" ".build\\Editor_Release\\Assets" *.* /w:0 /r:1 /v /E ; if ($lastexitcode -lt 8) { $global:LASTEXITCODE = $null }
+          robocopy "Engine/Tools/HUB" ".build\\Editor_Release" *.exe /w:0 /r:1 /v /E ; if ($lastexitcode -lt 8) { $global:LASTEXITCODE = $null }
