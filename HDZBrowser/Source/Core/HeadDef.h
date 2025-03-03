@@ -1,9 +1,11 @@
 #pragma once
 #include <string>
+#include <vector>
 
 struct HeadDef
 {
     HeadDef() = default;
     std::string ID;
-    std::string AssociatedAudioFile;
+    std::vector<std::string> AssociatedAudioFiles; // Temp for now
+    std::vector<std::string> HeadPortraits;
 };

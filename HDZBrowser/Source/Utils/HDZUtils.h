@@ -181,7 +181,7 @@ namespace HDZUtils
     }
 
 
-    void extract_wav_files( const std::string& input_filename )
+    void parse_hdz_file( const std::string& input_filename, std::vector<HeadDef>& outHeadList, std::vector<HeadDef>& outDeadHeadList )
     {
         std::ifstream input( input_filename, std::ios::binary );
         if( !input )
@@ -204,6 +204,7 @@ namespace HDZUtils
         size_t wavPos = 0;
 
         std::string CharacterID;
+        HeadDef* CurrentHeadDef = nullptr;
         while( pos < buffer.size() )
         {
             if( is_wav_header( buffer, pos ) )
@@ -223,15 +224,22 @@ namespace HDZUtils
                     std::cerr << "Error: Could not create " << wav_filename << "\n";
                     return;
                 }
+                CurrentHeadDef->AssociatedAudioFiles.push_back( wav_filename );
 
                 output.write( reinterpret_cast<const char*>( &buffer[pos] ), file_size );
                 output.close();
-                CharacterID = "Unknown";
                 std::cout << "Extracted: " << wav_filename << "\n";
+                std::cout << "Audio: " << wav_filename << "\n";
+                string_output << '[' << wavPos << ']' << wav_filename << "\n";
+                CharacterID = "Unknown";
                 pos += file_size;
             }
-            if( extractAndWriteBMP( buffer, pos, std::string("Assets/RAW/TEXTURES/" + std::to_string(bmp_count) + ".bmp")))
+
+            std::string textureOutput = std::string( "Assets/RAW/TEXTURES/" + std::to_string( bmp_count ) + ".bmp" );
+            if( extractAndWriteBMP( buffer, pos, textureOutput ))
             {
+                string_output << '[' << pos << "] Exported Texture: " << textureOutput << "\n";
+                CurrentHeadDef->HeadPortraits.push_back( textureOutput );
                 bmp_count++;
             }
             {
@@ -251,11 +259,25 @@ namespace HDZUtils
 
                     if( isStandardExpectation || isDifferent || USSoldier )
                     {
+                        // Filter for a real character ID
+                        std::string realName = GetCharacterID( extracted_string );
                         CharacterID = extracted_string;
-                        std::cout << "Prior audio: " << wav_filename << "\n";
-                        std::cout << "Found string: " << extracted_string << "\n\n";
-                        string_output << '[' << wavPos << ']' << wav_filename << "\n\n";
-                        string_output << '[' << start << ']' << extracted_string << "\n";
+                        if( !realName.empty() )
+                        {
+                            std::cout << "Found string: " << extracted_string << "\n\n";
+                            string_output << '[' << start << ']' << extracted_string << "\n";
+                            HeadDef newDef;
+                            newDef.ID = realName;
+                            outHeadList.push_back( std::move( newDef ) );
+                            CurrentHeadDef = &outHeadList.back();
+                        }
+                        else
+                        {
+                            HeadDef newDef;
+                            newDef.ID = extracted_string;
+                            outDeadHeadList.push_back( std::move( newDef ) );
+                            CurrentHeadDef = &outDeadHeadList.back();
+                        }
                     }
                 }
                 ++pos;
