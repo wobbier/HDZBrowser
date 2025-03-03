@@ -5,6 +5,8 @@
 #include <string>
 #include <cstdint>
 #include "Core\Assert.h"
+#include <algorithm>
+#include "Path.h"
 
 namespace HDZUtils
 {
@@ -51,6 +53,41 @@ namespace HDZUtils
     bool is_printable_char( uint8_t c )
     {
         return std::isprint( c ) || std::isspace( c );
+    }
+
+
+    std::string extractFirstWord( const std::string& str )
+    {
+        std::string firstWord;
+        for( char ch : str )
+        {
+            if( !std::isalpha( ch ) ) break;
+            firstWord += std::toupper( ch );
+        }
+        return firstWord;
+    }
+
+
+    bool isFirstWordRepeated( const std::string& str )
+    {
+        size_t start = str.find_first_not_of( ' ' );
+        if( start == std::string::npos ) return false;
+
+        std::string trimmed = str.substr( start );
+        std::string firstWord = extractFirstWord( trimmed );
+        if( firstWord.empty() ) return false; // No valid first word
+
+        // Convert entire string to uppercase for case-insensitive search
+        std::string upperStr = str;
+        std::transform( upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper );
+
+        // Find first occurrence
+        size_t firstPos = upperStr.find( firstWord );
+        if( firstPos == std::string::npos ) return false;
+
+        // Search for another occurrence
+        size_t secondPos = upperStr.find( firstWord, firstPos + firstWord.size() );
+        return secondPos != std::string::npos;
     }
 
 
@@ -217,7 +254,7 @@ namespace HDZUtils
                     break;
                 }
                 wavPos = pos;
-                wav_filename = "Assets/RAW/AUDIO/" + std::to_string(wav_count++) + "_" + GetCharacterID(CharacterID) + ".wav";
+                wav_filename = "Assets/RAW/AUDIO/" + std::to_string(wav_count++) + "_" + GetCharacterID(CurrentHeadDef->RawID) + ".wav";
                 std::ofstream output( wav_filename, std::ios::binary );
                 if( !output )
                 {
@@ -257,23 +294,27 @@ namespace HDZUtils
                     bool isDifferent = ( std::isspace( extracted_string[0] ) && std::isupper( extracted_string[1] ) && extracted_string[3] == '.' );
                     bool USSoldier = ( extracted_string.find("U.S.") != std::string::npos );
 
+                    //if( ( isDifferent || isStandardExpectation ) && hasRepeatingWord )
                     if( isStandardExpectation || isDifferent || USSoldier )
                     {
+                        bool hasRepeatingWord = isFirstWordRepeated( extracted_string );
                         // Filter for a real character ID
                         std::string realName = GetCharacterID( extracted_string );
                         CharacterID = extracted_string;
-                        if( !realName.empty() )
+                        if( !realName.empty() || hasRepeatingWord )
                         {
                             std::cout << "Found string: " << extracted_string << "\n\n";
                             string_output << '[' << start << ']' << extracted_string << "\n";
                             HeadDef newDef;
-                            newDef.ID = realName;
+                            newDef.RawID = extracted_string;
+                            newDef.ID = ( realName.empty() && hasRepeatingWord ) ? extracted_string : realName;
                             outHeadList.push_back( std::move( newDef ) );
                             CurrentHeadDef = &outHeadList.back();
                         }
                         else
                         {
                             HeadDef newDef;
+                            newDef.RawID = extracted_string;
                             newDef.ID = extracted_string;
                             outDeadHeadList.push_back( std::move( newDef ) );
                             CurrentHeadDef = &outDeadHeadList.back();
@@ -282,6 +323,70 @@ namespace HDZUtils
                 }
                 ++pos;
             }
+        }
+        string_output.close();
+    }
+
+
+    void parse_map_file( const Path& inMapPath )
+    {
+        std::ifstream input( inMapPath.FullPath, std::ios::binary );
+        if( !input )
+        {
+            std::cerr << "Error: Could not open " << inMapPath.GetLocalPathString() << "\n";
+            return;
+        }
+        std::vector<uint8_t> buffer( ( std::istreambuf_iterator<char>( input ) ), {} );
+        std::ofstream string_output( "Assets/RAW/map_log.txt" );
+        if( !string_output )
+        {
+            std::cerr << "Error: Could not create map_log.txt\n";
+            return;
+        }
+
+        size_t pos = 0;
+        int wav_count = 0;
+        int bmp_count = 0;
+        std::string wav_filename;
+        size_t wavPos = 0;
+
+        std::string CharacterID;
+        while( pos < buffer.size() )
+        {
+            if( is_wav_header( buffer, pos ) )
+            {
+                //ME_ASSERT_MSG( !CharacterID.empty(), "Parsing a wav file before we found a valid character entry.");
+                uint32_t file_size = read_little_endian_uint32( buffer, pos + 4 ) + 8; // RIFF chunk size + header
+                if( pos + file_size > buffer.size() )
+                {
+                    std::cerr << "Warning: Incomplete WAV file detected. Skipping.\n";
+                    break;
+                }
+                wavPos = pos;
+                wav_filename = "Assets/RAW/AUDIO/" + inMapPath.GetFileNameString(false) + "_" + std::to_string( wav_count++ ) + ".wav";
+                std::ofstream output( wav_filename, std::ios::binary );
+                if( !output )
+                {
+                    std::cerr << "Error: Could not create " << wav_filename << "\n";
+                    return;
+                }
+
+                output.write( reinterpret_cast<const char*>( &buffer[pos] ), file_size );
+                output.close();
+                std::cout << "Extracted: " << wav_filename << "\n";
+                std::cout << "Audio: " << wav_filename << "\n";
+                string_output << '[' << wavPos << ']' << wav_filename << "\n";
+                pos += file_size;
+            }
+
+            std::string textureOutput = std::string( "Assets/RAW/TEXTURES/" + inMapPath.GetFileNameString( false ) + "_" + std::to_string( bmp_count ) + ".bmp" );
+            if( extractAndWriteBMP( buffer, pos, textureOutput ) )
+            {
+                string_output << '[' << pos << "] Exported Texture: " << textureOutput << "\n";
+                bmp_count++;
+            }
+
+            ++pos;
         }
         string_output.close();
     }

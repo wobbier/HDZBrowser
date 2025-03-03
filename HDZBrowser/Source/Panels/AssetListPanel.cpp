@@ -53,6 +53,11 @@ void AssetListPanel::Draw()
         HDZUtils::parse_hdz_file( "Assets/hedz.hdz", m_headList, m_deadHeadList );
     }
 
+    if( ImGui::Button( "Parse Map File" ) )
+    {
+        HDZUtils::parse_map_file( Path("Assets/RAW/MapFiles/C_Dtown.cmp") );
+    }
+
     std::string totalHeads( "Total Heads: " + std::to_string(m_headList.size()) + "/279");
     ImGui::Text( totalHeads.c_str() );
 
