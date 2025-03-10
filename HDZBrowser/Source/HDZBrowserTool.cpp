@@ -24,6 +24,7 @@ HDZBrowserTool::HDZBrowserTool( ToolCreationFlags& inToolCreationFlags )
 
 void HDZBrowserTool::OnStart()
 {
+    AssetPanel.Init();
 }
 
 void HDZBrowserTool::OnUpdate()
@@ -38,6 +39,6 @@ void HDZBrowserTool::OnUpdate()
 //#endif
     AssetPanel.Draw();
 
-    static bool showDemo = true;
-    ImGui::ShowDemoWindow( &showDemo );
+    //static bool showDemo = true;
+    //ImGui::ShowDemoWindow( &showDemo );
 }

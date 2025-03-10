@@ -86,6 +86,9 @@ jobs:
             !.build${{matrix.buildconfig}}_${{matrix.configuration}}/*.pdb
             !.build${{matrix.buildconfig}}_${{matrix.configuration}}/*.exp
             !.build${{matrix.buildconfig}}_${{matrix.configuration}}/*.log
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/HUB.*
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/ShaderEditor.*
+            !.build${{matrix.buildconfig}}_${{matrix.configuration}}/Havana.*
             .build/${{matrix.buildconfig}}_${{matrix.configuration}}/Tools/Optick.exe
             .build/${{matrix.buildconfig}}_${{matrix.configuration}}/Tools/Win64/*.*
 

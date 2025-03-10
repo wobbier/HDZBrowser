@@ -28,8 +28,36 @@ void DrawHeadItem( HeadDef& inHead )
     }
 }
 
+AssetListPanel::AssetListPanel()
+    : pixelImage( 128, 128, {
+    {PixelCategory::UnknownBinary, {0xFF000000, "Unknown"}},
+    {PixelCategory::WAVFile, {0xFFFF0000, "WAV File"}},
+    {PixelCategory::CharacterName, {0xFF00FF00, "Character Name"}},
+    {PixelCategory::BMPFile, {0xFF0000FF, "BMP File"}},
+        } )
+{
+
+}
+
+
+void AssetListPanel::Init()
+{
+    // Example color definitions:
+    pixelImage.Resize( 3000, 9000 ); // Scale up 2x
+    //pixelImage.SetPixel( 10, 1 ); // Set pixel index 10 to Red
+    //pixelImage.SetPixelRange( 20, 30, 2 ); // Set pixels [20, 30) to Green
+
+    pixelImage.UploadToGPU();
+    pixelImage.WriteImage( "output.png" );
+}
+
+
 void AssetListPanel::Draw()
 {
+
+    ImGui::Begin( "BIN PREVIEW" );
+    pixelImage.RenderImGui(); // Call inside ImGui window
+    ImGui::End();
     ImGui::Begin( "Character List" );
 
     if( ImGui::Button( "Parse HDZ File" ) )
@@ -51,18 +79,76 @@ void AssetListPanel::Draw()
             std::cout << "FINAL RESULT: " << extracted << std::endl;
         }
 
-        HDZUtils::parse_hdz_file( "Assets/hedz.hdz", m_headList, m_deadHeadList );
+        HDZUtils::parse_hdz_file( "Assets/hedz.hdz", m_headList, m_deadHeadList, pixelImage );
+    }
+
+    std::vector<Path> binFiles = {
+        // AMB Music
+        Path( "Assets/HEDZ/MUSIC/1.AMB" ),
+        Path( "Assets/HEDZ/MUSIC/2.AMB" ),
+        Path( "Assets/HEDZ/MUSIC/3.AMB" ),
+        Path( "Assets/HEDZ/MUSIC/4.AMB" ),
+        Path( "Assets/HEDZ/MUSIC/5.AMB" ),
+        Path( "Assets/HEDZ/MUSIC/6.AMB" ),
+        Path( "Assets/HEDZ/MUSIC/7.AMB" ),
+        // Levels
+        Path( "Assets/RAW/MapFiles/C_Dtown.cmp" ),
+        Path( "Assets/RAW/MapFiles/C_Locks.cmp" ),
+        Path( "Assets/RAW/MapFiles/E_Chase.cmp" ),
+        Path( "Assets/RAW/MapFiles/E_Dogfig.cmp" ),
+        Path( "Assets/RAW/MapFiles/E_Rise.cmp" ),
+        Path( "Assets/RAW/MapFiles/E_Siege.cmp" ),
+        Path( "Assets/RAW/MapFiles/I_Machin.cmp" ),
+        Path( "Assets/RAW/MapFiles/I_Prodct.cmp" ),
+        Path( "Assets/RAW/MapFiles/I_WareH.cmp" ),
+        Path( "Assets/RAW/MapFiles/K_Bricks.cmp" ),
+        Path( "Assets/RAW/MapFiles/K_FnFair.cmp" ),
+        Path( "Assets/RAW/MapFiles/K_Park.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_Alien.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_City.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_Dogfig.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_Indust.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_Kid.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_Occult.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_Scienc.cmp" ),
+        Path( "Assets/RAW/MapFiles/M_War.cmp" ),
+        Path( "Assets/RAW/MapFiles/O_Fort.cmp" ),
+        Path( "Assets/RAW/MapFiles/O_House.cmp" ),
+        Path( "Assets/RAW/MapFiles/O_Infrno.cmp" ),
+        Path( "Assets/RAW/MapFiles/S_Mole.cmp" ),
+        Path( "Assets/RAW/MapFiles/S_Weird.cmp" ),
+        Path( "Assets/RAW/MapFiles/W_Enemy.cmp" ),
+        Path( "Assets/RAW/MapFiles/W_Jungle.cmp" ),
+        Path( "Assets/RAW/MapFiles/W_NoMan.cmp" ),
+        //Misc
+        Path( "Assets/HEDZ/fxdata.dat" ),
+        Path( "Assets/HEDZ/fedata.dat" ),
+        Path( "Assets/HEDZ/HEDZ.EXE" ),
+        Path( "Assets/HEDZ/SoundFX.dat" ),
+    };
+
+    if( ImGui::Button( "Check for Audio Headers" ) )
+    {
+        for (auto& path : binFiles)
+        {
+            HDZUtils::scanAndExtractAudioFiles( path );
+        }
     }
 
     if( ImGui::Button( "Parse Map File" ) )
     {
-        HDZUtils::parse_map_file( Path("Assets/RAW/MapFiles/C_Dtown.cmp") );
+        HDZUtils::parse_map_file( binFiles );
     }
 
-    std::string totalHeads( "Total Heads: " + std::to_string(m_headList.size()) + "/279");
+    if( ImGui::Button( "Parse Bin File" ) )
+    {
+        HDZUtils::Smain();
+    }
+
+    std::string totalHeads( "Total Heads: " + std::to_string( m_headList.size() ) + "/225" );
     ImGui::Text( totalHeads.c_str() );
 
-    if( ImGui::CollapsingHeader( "Fixed Heads", 0) )
+    if( ImGui::CollapsingHeader( "Fixed Heads", 0 ) )
     {
         for( auto& head : m_headList )
         {
