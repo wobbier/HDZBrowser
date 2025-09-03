@@ -34,6 +34,7 @@ AssetListPanel::AssetListPanel()
     {PixelCategory::WAVFile, {0xFFFF0000, "WAV File"}},
     {PixelCategory::CharacterName, {0xFF00FF00, "Character Name"}},
     {PixelCategory::BMPFile, {0xFF0000FF, "BMP File"}},
+    {PixelCategory::SolvedData, {0xFFFFFFFF, "Solved Data"}},
         } )
 {
 

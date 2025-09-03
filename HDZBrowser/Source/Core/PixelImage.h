@@ -9,6 +9,7 @@ enum PixelCategory
     WAVFile,
     CharacterName,
     BMPFile,
+    SolvedData,
 
     COUNT
 };

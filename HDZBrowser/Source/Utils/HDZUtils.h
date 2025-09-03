@@ -434,6 +434,54 @@ namespace HDZUtils
     }
 
 
+    void ParseHeadStrings(const std::vector<uint8_t>& inBuffer, size_t inStartingOffset, HeadDef& inHead)
+    {
+        // this is relative to the starting of the string section and not the start of the head def because I'm unsure of the start of that atm.
+        size_t headIDLength = inBuffer[inStartingOffset - 0x85];
+        size_t englishLocKeyLength = inBuffer[inStartingOffset - 0x84];
+        size_t spanishLocKeyLength = inBuffer[inStartingOffset - 0x83];
+        size_t italianLocKeyLength = inBuffer[inStartingOffset - 0x82];
+        size_t frenchLocKeyLength = inBuffer[inStartingOffset - 0x81]; // Unkown what this is atm...
+        size_t dutchLocKeyLength = inBuffer[inStartingOffset - 0x80];
+        size_t swedishLocKeyLength = inBuffer[inStartingOffset - 0x7F];
+        size_t extraKeyLength = inBuffer[inStartingOffset - 0x7E]; // Unkown what this is atm...
+
+        // Consider a valid string if it's at least 10 characters long
+        auto start = inBuffer.begin() + inStartingOffset;
+        auto end = inBuffer.begin() + inStartingOffset;
+        inHead.ID = std::string(start, end + headIDLength);
+        inHead.RawID = inHead.ID;
+
+        start += headIDLength;
+        end = start + englishLocKeyLength;
+        inHead.EnglishLocKey = std::string(start, end);
+
+        start += englishLocKeyLength;
+        end = start + spanishLocKeyLength;
+        inHead.SpanishLocKey = std::string(start, end);
+
+        start += spanishLocKeyLength;
+        end = start + italianLocKeyLength;
+        inHead.ItalianLocKey = std::string(start, end);
+
+        start += italianLocKeyLength;
+        end = start + frenchLocKeyLength;
+        inHead.FrenchLocKey = std::string(start, end);
+
+        start += frenchLocKeyLength;
+        end = start + dutchLocKeyLength;
+        inHead.DutchLocKey = std::string(start, end);
+
+        start += dutchLocKeyLength;
+        end = start + swedishLocKeyLength;
+        inHead.SwedishLocKey = std::string(start, end);
+
+        start += swedishLocKeyLength;
+        end = start + extraKeyLength;
+        inHead.ExtraLocKey = std::string(start, end);
+    }
+
+
     void parse_hdz_file( const std::string& input_filename, std::vector<HeadDef>& outHeadList, std::vector<HeadDef>& outDeadHeadList, PixelImage& pixelImage )
     {
         std::ifstream input( input_filename, std::ios::binary );
@@ -464,11 +512,11 @@ namespace HDZUtils
         size_t lastWAV = 0;
         while( pos < buffer.size() )
         {
-            if( character_num > 25 )
+            if( character_num > 15 )
             {
-                writeBytesToFile( buffer, startingPos, pos, "Assets/RAW/SUS.bin" );
-
-                string_output << '[' << pos << "]" << " Last Index" << "\n";
+                //writeBytesToFile( buffer, startingPos, pos, "Assets/RAW/SUS.bin" );
+                //
+                //string_output << '[' << pos << "]" << " Last Index" << "\n";
                 break;
             }
             if( is_wav_header( buffer, pos ) )
@@ -547,51 +595,18 @@ namespace HDZUtils
                     // Check for printable ASCII strings
                     size_t start = pos + 0xCB;
                     size_t end = start;
-                    while( end < buffer.size() && is_printable_char( buffer[end] ) )
+
+                    //pixelImage.SetPixel(headIDPos, PixelCategory::BMPFile);
+
                     {
-                        ++end;
-                    }
-                    if( end - start > 10 )
-                    {
-                        // Consider a valid string if it's at least 10 characters long
-                        std::string extracted_string( buffer.begin() + start, buffer.begin() + end );
-                        bool isStandardExpectation = ( std::isspace( extracted_string[0] ) && std::isupper( extracted_string[1] ) && std::islower( extracted_string[3] ) );
-                        bool isDifferent = ( std::isspace( extracted_string[0] ) && std::isupper( extracted_string[1] ) && extracted_string[3] == '.' );
-                        bool USSoldier = ( extracted_string.find( "U.S." ) != std::string::npos );
-                        //if( ( isDifferent || isStandardExpectation ) && hasRepeatingWord )
-                        //if( isStandardExpectation || isDifferent || USSoldier )
-                        {
-                            bool hasRepeatingWord = isFirstWordRepeated( extracted_string );
-                            // Filter for a real character ID
-                            std::string realName = GetCharacterID( extracted_string );
-                            CharacterID = extracted_string;
-                            if( !realName.empty() || hasRepeatingWord )
-                            {
-                                std::cout << "Found string: " << extracted_string << "\n\n";
-                                //string_output << '[' << start << ']' << extracted_string << "\n";
-                                HeadDef newDef;
-                                newDef.RawID = extracted_string;
-                                newDef.ID = ( realName.empty() && hasRepeatingWord ) ? extracted_string : realName;
-                                outHeadList.push_back( std::move( newDef ) );
-                                CurrentHeadDef = &outHeadList.back();
-                            }
-                            else
-                            {
-                                HeadDef newDef;
-                                newDef.RawID = extracted_string;
-                                newDef.ID = extracted_string;
-                                outDeadHeadList.push_back( std::move( newDef ) );
-                                //string_output << '[' << character_num << ']' << "NOT FOUND CHARACTER STRING BIN:" << extracted_string << "\n";
-                                CurrentHeadDef = &outDeadHeadList.back();
-                            }
-                            CurrentHeadDef->CharacterIndex = character_num;
-                        }
+                        HeadDef newDef;
+                        ParseHeadStrings(buffer, start, newDef);
+                        outHeadList.push_back( std::move( newDef ) );
+                        CurrentHeadDef = &outHeadList.back();
+                        CharacterID = newDef.ID;
+                        CurrentHeadDef->CharacterIndex = character_num;
 
                         pixelImage.SetPixelRange( start, end, PixelCategory::CharacterName );
-                    }
-                    else
-                    {
-                        string_output << '[' << character_num << ']' << " CHARACTER STRING SIZE TOO SMALL\n";
                     }
                     character_num++;
                 }
