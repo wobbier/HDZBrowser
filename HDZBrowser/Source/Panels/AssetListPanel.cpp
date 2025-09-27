@@ -133,17 +133,9 @@ void AssetListPanel::Draw()
     std::string totalHeads( "Total Heads: " + std::to_string( m_headList.size() ) + "/225" );
     ImGui::Text( totalHeads.c_str() );
 
-    if( ImGui::CollapsingHeader( "Fixed Heads", 0 ) )
+    if( ImGui::CollapsingHeader( "Heads", ImGuiTreeNodeFlags_DefaultOpen ) )
     {
         for( auto& head : m_headList )
-        {
-            DrawHeadItem( head );
-        }
-    }
-
-    if( ImGui::CollapsingHeader( "Unfixed Heads", 0 ) )
-    {
-        for( auto& head : m_deadHeadList )
         {
             DrawHeadItem( head );
         }

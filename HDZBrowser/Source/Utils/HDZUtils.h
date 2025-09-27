@@ -276,47 +276,6 @@ namespace HDZUtils
     }
 
 
-    bool is_printable_char( uint8_t c )
-    {
-        return std::isprint( c ) || std::isspace( c );
-    }
-
-
-    std::string extractFirstWord( const std::string& str )
-    {
-        std::string firstWord;
-        for (char ch : str)
-        {
-            if (!std::isalpha( ch )) break;
-            firstWord += std::toupper( ch );
-        }
-        return firstWord;
-    }
-
-
-    bool isFirstWordRepeated( const std::string& str )
-    {
-        size_t start = str.find_first_not_of( ' ' );
-        if (start == std::string::npos) return false;
-
-        std::string trimmed = str.substr( start );
-        std::string firstWord = extractFirstWord( trimmed );
-        if (firstWord.empty()) return false; // No valid first word
-
-        // Convert entire string to uppercase for case-insensitive search
-        std::string upperStr = str;
-        std::transform( upperStr.begin(), upperStr.end(), upperStr.begin(), ::toupper );
-
-        // Find first occurrence
-        size_t firstPos = upperStr.find( firstWord );
-        if (firstPos == std::string::npos) return false;
-
-        // Search for another occurrence
-        size_t secondPos = upperStr.find( firstWord, firstPos + firstWord.size() );
-        return secondPos != std::string::npos;
-    }
-
-
     bool writeBytesToFile( const std::vector<uint8_t>& source, size_t start, size_t end, const std::string& filename )
     {
         if (start >= end || end > source.size())
@@ -436,14 +395,14 @@ namespace HDZUtils
         auto end = inBuffer.begin() + inStartingOffset + 133;
 
         // this is relative to the starting of the string section and not the start of the head def because I'm unsure of the start of that atm.
-        uint8_t headIDLength        = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t headIDLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
         uint8_t englishLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
         uint8_t spanishLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
         uint8_t italianLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
-        uint8_t frenchLocKeyLength  = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset ); // Unkown what this is atm...
-        uint8_t dutchLocKeyLength   = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t frenchLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset ); // Unkown what this is atm...
+        uint8_t dutchLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
         uint8_t swedishLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
-        uint8_t extraKeyLength      = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset ); // Unkown what this is atm...
+        uint8_t extraKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset ); // Unkown what this is atm...
 
         inHead.ID = std::string( start, end + headIDLength );
         inHead.RawID = inHead.ID;
@@ -484,7 +443,8 @@ namespace HDZUtils
         PixelImage& pixelImage )
     {
         std::ifstream input( input_filename, std::ios::binary );
-        if (!input) {
+        if (!input)
+        {
             std::cerr << "Error: Could not open " << input_filename << "\n";
             return;
         }
@@ -494,18 +454,20 @@ namespace HDZUtils
         std::vector<uint8_t> mutated_buffer = buffer; // Copy for visualization
 
         std::ofstream string_output( "Assets/RAW/extracted_strings.txt" );
-        if (!string_output) {
+        if (!string_output)
+        {
             std::cerr << "Error: Could not create extracted_strings.txt\n";
             return;
         }
 
-        size_t pos = 0;
+        size_t startIT = 0;
+#if 1
         // Read head sizes 0xB53B
-        pos++;
+        startIT++;
 
-        uint32_t numHeads = ReadValueAdv<uint32_t>( buffer, pos );
+        uint32_t numHeads = ReadValueAdv<uint32_t>( buffer, startIT );
         outHeadList.resize( numHeads );
-        size_t headDataSizeStartingIndex = pos;
+        size_t headDataSizeStartingIndex = startIT;
 
         for (size_t i = 0; i < numHeads; ++i)
         {
@@ -533,9 +495,70 @@ namespace HDZUtils
             }
 
             ParseHeadStrings( buffer, headPos, currentHeadDef );
+
+            // WAV section detection
+            {
+                uint32_t wavStart = ReadValue<uint32_t>( buffer, headPos + 50 );
+                uint8_t numWavs = ReadValue<uint8_t>( buffer, headPos + 62 );
+                size_t wavPos = headPos + wavStart;
+                bool exportFiles = true;
+                for (size_t i = 0; i < numWavs; ++i)
+                {
+                    // The location of the wav table is located at 50 bytes into the header.
+                    // The 4 bytes before the RIFF label is the size in bytes ( even though it's in the WAV header )
+                    // The 2 bytes before that might be the audio type.
+
+                    uint16_t possibleWavFlags = ReadValueAdv<uint16_t>( buffer, wavPos );
+                    uint32_t wavFileSize = ReadValueAdv<uint32_t>( buffer, wavPos );
+
+                    ME_ASSERT_MSG( is_wav_header( buffer, wavPos ), "Failed to detect a wav header." );
+
+                    uint32_t file_size = read_little_endian_uint32( buffer, wavPos + 4 ) + 8;
+                    ME_ASSERT_MSG( wavFileSize == file_size, "Wav Size Mismatch." );
+                    string_output << "WAV at pos=" << wavPos << " claims size=" << file_size << '\n';
+
+                    if (wavPos + file_size > buffer.size())
+                    {
+                        std::cerr << "Warning: Incomplete WAV file detected. Skipping.\n";
+                        break;
+                    }
+
+                    std::string wav_filename = "Assets/RAW/AUDIO/" + std::to_string( currentHeadDef.CharacterIndex ) +
+                        "_" + ( currentHeadDef.RawID ) + "_" + std::to_string( i ) + "_" + std::to_string( possibleWavFlags ) + ".wav";
+
+                    if (exportFiles)
+                    {
+                        std::ofstream output( wav_filename, std::ios::binary );
+                        if (!output)
+                        {
+                            std::cerr << "Error: Could not create " << wav_filename << "\n";
+                            return;
+                        }
+                        output.write( reinterpret_cast<const char*>( &buffer[wavPos] ), file_size );
+                        output.close();
+                        std::cout << "Extracted Audio: " << wav_filename << "\n";
+                    }
+
+                    string_output << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
+
+                    currentHeadDef.AssociatedAudioFiles.push_back( wav_filename );
+
+                    if (file_size >= 4)
+                    {
+                        memcpy( &mutated_buffer[wavPos], "RIFF", 4 );
+                        std::fill( mutated_buffer.begin() + wavPos + 4,
+                            mutated_buffer.begin() + wavPos + file_size,
+                            0xAA );
+                    }
+
+                    pixelImage.SetPixelRange( wavPos, wavPos + file_size, PixelCategory::WAVFile );
+
+                    wavPos += wavFileSize;
+                }
+            }
         }
 
-#if 0
+#else
 
         int wav_count = 0;
         int bmp_count = 0;
@@ -549,69 +572,15 @@ namespace HDZUtils
         size_t lastWAV = 0;
         bool bmpArraySizePosCheck = false;
 
-        while (pos < buffer.size()) {
-            // WAV section detection
-            if (is_wav_header( buffer, pos )) {
-                bmpArraySizePosCheck = false;
-                uint32_t file_size = read_little_endian_uint32( buffer, pos + 4 ) + 8;
-                string_output << "WAV at pos=" << pos << " claims size=" << file_size << '\n';
+        while (pos < buffer.size())
+        {
 
-                if (pos + file_size > buffer.size()) {
-                    std::cerr << "Warning: Incomplete WAV file detected. Skipping.\n";
-                    break;
-                }
-
-                size_t wavPos = pos;
-                wav_filename = "Assets/RAW/AUDIO/" + std::to_string( wav_count++ ) +
-                    "_" + ( CurrentHeadDef ? CurrentHeadDef->RawID : "UNK" ) + ".wav";
-
-                if (exportFiles) {
-                    std::ofstream output( wav_filename, std::ios::binary );
-                    if (!output) {
-                        std::cerr << "Error: Could not create " << wav_filename << "\n";
-                        return;
-                    }
-                    output.write( reinterpret_cast<const char*>( &buffer[pos] ), file_size );
-                    output.close();
-                    std::cout << "Extracted Audio: " << wav_filename << "\n";
-                }
-
-                string_output << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
-
-                if (CurrentHeadDef)
-                    CurrentHeadDef->AssociatedAudioFiles.push_back( wav_filename );
-
-                // *** NEW: Fill region with marker byte, keep RIFF header visible ***
-                if (file_size >= 4) {
-                    // Preserve first 4 bytes ("RIFF")
-                    memcpy( &mutated_buffer[pos], "RIFF", 4 );
-                    // Fill the rest with 0xAA
-                    std::fill( mutated_buffer.begin() + pos + 4,
-                        mutated_buffer.begin() + pos + file_size,
-                        0xAA );
-                }
-
-                CharacterID = "Unknown";
-                pixelImage.SetPixelRange( pos, pos + file_size - 5000, PixelCategory::WAVFile );
-
-                if (file_size > maxFileSize) {
-                    maxFileSize = file_size;
-                    string_output << "NEW MAXIMUM========================="
-                        << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
-                }
-
-                if (lastWAV != pos) {
-                    writeBytesToFile( buffer, lastWAV, pos,
-                        "Assets/RAW/SUS_" +
-                        ( CurrentHeadDef ? CurrentHeadDef->RawID : "UNK" ) + ".bin" );
-                }
-                lastWAV = pos + file_size;
-            }
 
             // BMP extraction
             std::string textureOutput = "Assets/RAW/TEXTURES/" + std::to_string( bmp_count ) + ".bmp";
             size_t bmp_size = 0;
-            if (extractAndWriteBMP( buffer, pos, textureOutput, bmp_size, exportFiles )) {
+            if (extractAndWriteBMP( buffer, pos, textureOutput, bmp_size, exportFiles ))
+            {
                 if (!bmpArraySizePosCheck)
                 {
                     bmpArraySizePosCheck = true;
@@ -623,7 +592,8 @@ namespace HDZUtils
                     pixelImage.SetPixelRange( pos, pos + bmp_size, PixelCategory::BMPFile );
 
                 // *** NEW: Fill texture region with visible marker, keep "BM" header ***
-                if (bmp_size >= 2) {
+                if (bmp_size >= 2)
+                {
                     memcpy( &mutated_buffer[pos], "BM", 2 ); // Keep "BM" header
                     std::fill( mutated_buffer.begin() + pos + 2,
                         mutated_buffer.begin() + pos + bmp_size,
@@ -634,10 +604,12 @@ namespace HDZUtils
             }
 
             // Potential head entry parsing
-            if (buffer[pos] == 0x4A && buffer[pos + 0xB0] == 0x48) {
+            if (buffer[pos] == 0x4A && buffer[pos + 0xB0] == 0x48)
+            {
                 if (buffer[pos + 1] == 0x00 && buffer[pos + 2] == 0x00 &&
                     buffer[pos + 3] == 0x00 && buffer[pos + 4] == 0x00 &&
-                    buffer[pos + 5] == 0x00) {
+                    buffer[pos + 5] == 0x00)
+                {
 
                     string_output << '[' << pos << "] Last Character\n";
 
@@ -645,10 +617,10 @@ namespace HDZUtils
                     size_t end = start;
 
                     HeadDef newDef;
-                    ParseHeadStrings( buffer, start, newDef );
+                    //ParseHeadStrings( buffer, start, newDef );
                     outHeadList.push_back( std::move( newDef ) );
                     CurrentHeadDef = &outHeadList.back();
-                    CharacterID = CurrentHeadDef->ID;
+                    CharacterID = std::to_string( character_num );
                     CurrentHeadDef->CharacterIndex = character_num;
 
                     pixelImage.SetPixelRange( start, end, PixelCategory::CharacterName );
@@ -665,12 +637,14 @@ namespace HDZUtils
         // Write out the mutated visualization file
         std::string visualized_filename = input_filename + ".visualized.bin";
         std::ofstream viz_out( visualized_filename, std::ios::binary );
-        if (viz_out) {
+        if (viz_out)
+        {
             viz_out.write( reinterpret_cast<const char*>( mutated_buffer.data() ), mutated_buffer.size() );
             viz_out.close();
             std::cout << "Created visualized file: " << visualized_filename << "\n";
         }
-        else {
+        else
+        {
             std::cerr << "Error: Could not create " << visualized_filename << "\n";
         }
     }

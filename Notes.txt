@@ -1,0 +1,36 @@
+1b - ?
+4b - u32 - num heads
+227*4b = 908
+head entry start:
+12 bytes
+2b header - this could be included or not in the 12 missing
+4b - u32 data size after this header
+4b?- u32 some number?
+2/4b- some other data
+
+
+Wav List:
+u32 Position: 50b offset from start
+u8 Count: 62b offset from start
+
+Wav File:
+2b: Flags
+4b: Size
+
+alien:
+913 - 02 00 B6 B1 00 00 4A 00 00 00 00 00 00 00 23
+45494
+first 12 bytes must not be counted in the size number
+
++1: u16 20736
++2: u16 38225 - u32 45494
+
+accident victim:
+start: 46395 - 02 00 51 95 01 00 4A 00 00 00 00 00 00 00 50 01 00 00 D0 BE
++1: u16 20736
++2: u16 38225 - u32 103761
+
+
+dog fighter:
+start: 150144
+offset: 123214

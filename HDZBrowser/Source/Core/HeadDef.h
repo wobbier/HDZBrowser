@@ -17,6 +17,7 @@ struct HeadDef
 
     HeadDef() = default;
     HeaderInfo Header;
+
     std::string RawID;
     std::string ID;
     int CharacterIndex = 0;
