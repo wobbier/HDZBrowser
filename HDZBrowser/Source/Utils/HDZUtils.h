@@ -412,28 +412,6 @@ namespace HDZUtils
     }
 
 
-    std::string GetCharacterID( std::string& inCharacterString )
-    {
-        for( size_t i = 1; i < inCharacterString.size(); ++i )
-        {
-            std::string prefix = inCharacterString.substr( 0, i );
-            std::string upper_prefix = prefix;
-
-            for( char& c : upper_prefix )
-            {
-                c = std::toupper( static_cast<unsigned char>( c ) );
-            }
-
-            if( inCharacterString.compare( i, upper_prefix.size(), upper_prefix ) == 0 )
-            {
-                return prefix;
-            }
-        }
-
-        return inCharacterString.substr( 0, 30 );
-    }
-
-
     void ParseHeadStrings(const std::vector<uint8_t>& inBuffer, size_t inStartingOffset, HeadDef& inHead)
     {
         // this is relative to the starting of the string section and not the start of the head def because I'm unsure of the start of that atm.
@@ -481,25 +459,86 @@ namespace HDZUtils
         inHead.ExtraLocKey = std::string(start, end);
     }
 
-
-    void parse_hdz_file( const std::string& input_filename, std::vector<HeadDef>& outHeadList, std::vector<HeadDef>& outDeadHeadList, PixelImage& pixelImage )
+    template<typename T>
+    T ReadValue(std::vector<uint8_t>& inBuff, size_t outPos)
     {
-        std::ifstream input( input_filename, std::ios::binary );
-        if( !input )
-        {
+        T* val = reinterpret_cast<T*>(&inBuff[outPos]);
+        return *val;
+    }
+
+    template<typename T>
+    T ReadValueAdv(std::vector<uint8_t>& inBuff, size_t& outPos)
+    {
+        T val = ReadValue<T>(inBuff, outPos);
+        outPos += sizeof(T);
+        return val;
+    }
+
+    void parse_hdz_file(const std::string& input_filename,
+        std::vector<HeadDef>& outHeadList,
+        std::vector<HeadDef>& outDeadHeadList,
+        PixelImage& pixelImage)
+    {
+        std::ifstream input(input_filename, std::ios::binary);
+        if (!input) {
             std::cerr << "Error: Could not open " << input_filename << "\n";
             return;
         }
-        std::vector<uint8_t> buffer( ( std::istreambuf_iterator<char>( input ) ), {} );
-        std::ofstream string_output( "Assets/RAW/extracted_strings.txt" );
-        if( !string_output )
-        {
+
+        // Load entire file into memory
+        std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(input)), {});
+        std::vector<uint8_t> mutated_buffer = buffer; // Copy for visualization
+
+        std::ofstream string_output("Assets/RAW/extracted_strings.txt");
+        if (!string_output) {
             std::cerr << "Error: Could not create extracted_strings.txt\n";
             return;
         }
 
-        size_t startingPos = 0;// 7359318;
-        size_t pos = startingPos;
+        size_t pos = 0;
+        // Read head sizes 0xB53B
+        pos++;
+
+        uint32_t numHeads = ReadValueAdv<uint32_t>(buffer, pos);
+        outHeadList.resize(numHeads);
+        size_t headDataSizeStartingIndex = pos;
+
+        for (size_t i = 0; i < numHeads; ++i)
+        {
+            HeadDef& currentHeadDef = outHeadList[i];
+            HeadDef::HeaderInfo& currentHeadHeader = currentHeadDef.Header;
+
+            // Filling the binary copy to make HxD visually cleaner
+            std::fill(mutated_buffer.begin() + headDataSizeStartingIndex,
+                mutated_buffer.begin() + headDataSizeStartingIndex + sizeof(uint32_t),
+                0xFF);
+
+            uint32_t headPos = ReadValueAdv<uint32_t>(buffer, headDataSizeStartingIndex);
+            uint16_t headerBits = ReadValue<uint16_t>(buffer, headPos); //Could be just an int8
+            uint32_t dataSize = ReadValue<uint32_t>(buffer, headPos + sizeof(headerBits));
+            currentHeadHeader.DataSize = dataSize;
+
+            // Save out our character binary and set our known bytes in our preview.
+            {
+                size_t headDataEndPos = headPos + dataSize - 12; // -12 since this doesn't count the header
+                pixelImage.SetPixelRange(headPos, headDataEndPos, PixelCategory::HeadInfo);
+                writeBytesToFile(buffer, headPos, headDataEndPos, "Assets/RAW/HEAD_CASE_" + std::to_string(i));
+            }
+        }
+
+        // Write out the mutated visualization file
+        std::string visualized_filename = input_filename + ".visualized.bin";
+        std::ofstream viz_out(visualized_filename, std::ios::binary);
+        if (viz_out) {
+            viz_out.write(reinterpret_cast<const char*>(mutated_buffer.data()), mutated_buffer.size());
+            viz_out.close();
+            std::cout << "Created visualized file: " << visualized_filename << "\n";
+        }
+        else {
+            std::cerr << "Error: Could not create " << visualized_filename << "\n";
+        }
+#if 0
+
         int wav_count = 0;
         int bmp_count = 0;
         std::string wav_filename;
@@ -510,116 +549,134 @@ namespace HDZUtils
         size_t maxFileSize = 0;
         bool exportFiles = true;
         size_t lastWAV = 0;
-        while( pos < buffer.size() )
-        {
-            if( character_num > 15 )
-            {
-                //writeBytesToFile( buffer, startingPos, pos, "Assets/RAW/SUS.bin" );
-                //
-                //string_output << '[' << pos << "]" << " Last Index" << "\n";
-                break;
-            }
-            if( is_wav_header( buffer, pos ) )
-            {
-                //ME_ASSERT_MSG( !CharacterID.empty(), "Parsing a wav file before we found a valid character entry.");
-                uint32_t file_size = read_little_endian_uint32( buffer, pos + 4 ) + 8; // RIFF chunk size + header
+        bool bmpArraySizePosCheck = false;
+
+        while (pos < buffer.size()) {
+            // WAV section detection
+            if (is_wav_header(buffer, pos)) {
+                bmpArraySizePosCheck = false;
+                uint32_t file_size = read_little_endian_uint32(buffer, pos + 4) + 8;
                 string_output << "WAV at pos=" << pos << " claims size=" << file_size << '\n';
-                if( pos + file_size > buffer.size() )
-                {
+
+                if (pos + file_size > buffer.size()) {
                     std::cerr << "Warning: Incomplete WAV file detected. Skipping.\n";
                     break;
                 }
-                size_t wavPos = 0;
-                wavPos = pos;
-                wav_filename = "Assets/RAW/AUDIO/" + std::to_string( wav_count++ ) + "_" + GetCharacterID( CurrentHeadDef->RawID ) + ".wav";
-                if( exportFiles )
-                {
-                    std::ofstream output( wav_filename, std::ios::binary );
-                    if( !output )
-                    {
+
+                size_t wavPos = pos;
+                wav_filename = "Assets/RAW/AUDIO/" + std::to_string(wav_count++) +
+                    "_" + (CurrentHeadDef ? CurrentHeadDef->RawID : "UNK") + ".wav";
+
+                if (exportFiles) {
+                    std::ofstream output(wav_filename, std::ios::binary);
+                    if (!output) {
                         std::cerr << "Error: Could not create " << wav_filename << "\n";
                         return;
                     }
-
-                    output.write( reinterpret_cast<const char*>( &buffer[pos] ), file_size );
+                    output.write(reinterpret_cast<const char*>(&buffer[pos]), file_size);
                     output.close();
                     std::cout << "Extracted Audio: " << wav_filename << "\n";
                 }
+
                 string_output << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
 
-                CurrentHeadDef->AssociatedAudioFiles.push_back( wav_filename );
+                if (CurrentHeadDef)
+                    CurrentHeadDef->AssociatedAudioFiles.push_back(wav_filename);
+
+                // *** NEW: Fill region with marker byte, keep RIFF header visible ***
+                if (file_size >= 4) {
+                    // Preserve first 4 bytes ("RIFF")
+                    memcpy(&mutated_buffer[pos], "RIFF", 4);
+                    // Fill the rest with 0xAA
+                    std::fill(mutated_buffer.begin() + pos + 4,
+                        mutated_buffer.begin() + pos + file_size,
+                        0xAA);
+                }
+
                 CharacterID = "Unknown";
-                //if( pos + file_size < pixelImage.GetLength() )
-                {
-                    pixelImage.SetPixelRange( pos, pos + file_size-5000, PixelCategory::WAVFile );
-                    if( file_size > maxFileSize )
-                    {
-                        maxFileSize = file_size;
-                        string_output << "NEW MAXIMUM=========================" << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
-                    }
+                pixelImage.SetPixelRange(pos, pos + file_size - 5000, PixelCategory::WAVFile);
+
+                if (file_size > maxFileSize) {
+                    maxFileSize = file_size;
+                    string_output << "NEW MAXIMUM========================="
+                        << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
                 }
-                if( lastWAV != pos )
-                {
-                    writeBytesToFile( buffer, lastWAV, pos, "Assets/RAW/SUS" + GetCharacterID(CurrentHeadDef->RawID) + ".bin" );
+
+                if (lastWAV != pos) {
+                    writeBytesToFile(buffer, lastWAV, pos,
+                        "Assets/RAW/SUS_" +
+                        (CurrentHeadDef ? CurrentHeadDef->RawID : "UNK") + ".bin");
                 }
-                //pos += file_size;
-                //continue;
                 lastWAV = pos + file_size;
             }
 
-            std::string textureOutput = std::string( "Assets/RAW/TEXTURES/" + std::to_string( bmp_count ) + ".bmp" );
-            size_t size = 0;
-            if( extractAndWriteBMP( buffer, pos, textureOutput, size, exportFiles ) )
-            {
-                //string_output << '[' << pos << "] Exported Texture: " << textureOutput << "\n";
-                CurrentHeadDef->HeadPortraits.push_back( textureOutput );
-                if( pos + size < pixelImage.GetLength() )
+            // BMP extraction
+            std::string textureOutput = "Assets/RAW/TEXTURES/" + std::to_string(bmp_count) + ".bmp";
+            size_t bmp_size = 0;
+            if (extractAndWriteBMP(buffer, pos, textureOutput, bmp_size, exportFiles)) {
+                if (!bmpArraySizePosCheck)
                 {
-                    pixelImage.SetPixelRange( pos, pos + size, PixelCategory::BMPFile );
+                    bmpArraySizePosCheck = true;
+                    //ME_ASSERT(pos - 0x7E == 3);
                 }
-                //pos += size;
+                if (CurrentHeadDef)
+                    CurrentHeadDef->HeadPortraits.push_back(textureOutput);
+                if (pos + bmp_size < pixelImage.GetLength())
+                    pixelImage.SetPixelRange(pos, pos + bmp_size, PixelCategory::BMPFile);
+
+                // *** NEW: Fill texture region with visible marker, keep "BM" header ***
+                if (bmp_size >= 2) {
+                    memcpy(&mutated_buffer[pos], "BM", 2); // Keep "BM" header
+                    std::fill(mutated_buffer.begin() + pos + 2,
+                        mutated_buffer.begin() + pos + bmp_size,
+                        0xBB); // Different byte than WAV for easy distinction
+                }
+
                 bmp_count++;
-                //continue;
             }
 
-            // This could be a header to a head entry?
-            if( buffer[pos] == 0x4A && buffer[pos + 0xB0] == 0x48 )
-            {
-                if( buffer[pos + 1] == 0x00 && buffer[pos + 2] == 0x00 && buffer[pos + 3] == 0x00 && buffer[pos + 4] == 0x00 && buffer[pos + 5] == 0x00 )
-                {
-                    string_output << '[' << pos << "]" << " Last Character" << "\n";
+            // Potential head entry parsing
+            if (buffer[pos] == 0x4A && buffer[pos + 0xB0] == 0x48) {
+                if (buffer[pos + 1] == 0x00 && buffer[pos + 2] == 0x00 &&
+                    buffer[pos + 3] == 0x00 && buffer[pos + 4] == 0x00 &&
+                    buffer[pos + 5] == 0x00) {
 
-                    //size_t characterBinOutputEnd = ( pos + 5000 > buffer.size() ) ? buffer.size() : pos + 5000;
-                    //writeBytesToFile( buffer, pos, characterBinOutputEnd, "Assets/RAW/BIN/" + std::to_string( character_num ) + ".bin" );
+                    string_output << '[' << pos << "] Last Character\n";
 
-                    // Check for printable ASCII strings
                     size_t start = pos + 0xCB;
                     size_t end = start;
 
-                    //pixelImage.SetPixel(headIDPos, PixelCategory::BMPFile);
+                    HeadDef newDef;
+                    ParseHeadStrings(buffer, start, newDef);
+                    outHeadList.push_back(std::move(newDef));
+                    CurrentHeadDef = &outHeadList.back();
+                    CharacterID = CurrentHeadDef->ID;
+                    CurrentHeadDef->CharacterIndex = character_num;
 
-                    {
-                        HeadDef newDef;
-                        ParseHeadStrings(buffer, start, newDef);
-                        outHeadList.push_back( std::move( newDef ) );
-                        CurrentHeadDef = &outHeadList.back();
-                        CharacterID = newDef.ID;
-                        CurrentHeadDef->CharacterIndex = character_num;
-
-                        pixelImage.SetPixelRange( start, end, PixelCategory::CharacterName );
-                    }
+                    pixelImage.SetPixelRange(start, end, PixelCategory::CharacterName);
                     character_num++;
                 }
-                else
-                {
-                    // just a coincidence 
-                }
             }
+
             ++pos;
         }
+
         string_output.close();
-        
+
+        // Write out the mutated visualization file
+        std::string visualized_filename = input_filename + ".visualized.bin";
+        std::ofstream viz_out(visualized_filename, std::ios::binary);
+        if (viz_out) {
+            viz_out.write(reinterpret_cast<const char*>(mutated_buffer.data()), mutated_buffer.size());
+            viz_out.close();
+            std::cout << "Created visualized file: " << visualized_filename << "\n";
+        }
+        else {
+            std::cerr << "Error: Could not create " << visualized_filename << "\n";
+        }
+#endif
     }
+
 
 
     void parse_map_file( const std::vector<Path>& inFiles )

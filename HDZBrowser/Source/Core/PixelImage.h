@@ -6,6 +6,7 @@
 enum PixelCategory
 {
     UnknownBinary = 0,
+    HeadInfo,
     WAVFile,
     CharacterName,
     BMPFile,

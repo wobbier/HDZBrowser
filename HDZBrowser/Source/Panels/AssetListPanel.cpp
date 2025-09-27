@@ -31,6 +31,7 @@ void DrawHeadItem( HeadDef& inHead )
 AssetListPanel::AssetListPanel()
     : pixelImage( 128, 128, {
     {PixelCategory::UnknownBinary, {0xFF000000, "Unknown"}},
+    {PixelCategory::HeadInfo, {0xFFFFF000, "Head Info"}},
     {PixelCategory::WAVFile, {0xFFFF0000, "WAV File"}},
     {PixelCategory::CharacterName, {0xFF00FF00, "Character Name"}},
     {PixelCategory::BMPFile, {0xFF0000FF, "BMP File"}},
@@ -63,23 +64,6 @@ void AssetListPanel::Draw()
 
     if( ImGui::Button( "Parse HDZ File" ) )
     {
-        std::vector<std::string> testStrings = {
-            "Bare_AlienBARE_ALIENBARE_ALIENBARE_ALIEN__",
-            "Angry_demonstratorANGRY_DEMONSTRATORMANIFESTANTE_ENFADADO...",
-            "Aircraft_carrier_headAIRCRAFT-CARRIER_HEAD...",
-            "33399",
-            "XXXXXXXX",
-            "DDD",
-            "888",
-            "Qnn"
-        };
-
-        for( auto& str : testStrings )
-        {
-            std::string extracted = HDZUtils::GetCharacterID( str );
-            std::cout << "FINAL RESULT: " << extracted << std::endl;
-        }
-
         HDZUtils::parse_hdz_file( "Assets/hedz.hdz", m_headList, m_deadHeadList, pixelImage );
     }
 
