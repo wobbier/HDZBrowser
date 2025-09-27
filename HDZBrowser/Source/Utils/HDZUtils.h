@@ -260,10 +260,6 @@ namespace HDZUtils
 
     bool is_wav_header( const std::vector<uint8_t>& buffer, size_t pos )
     {
-        if (pos == 0x52F531)
-        {
-            //ME_ASSERT(false);
-        }
         return buffer.size() >= pos + 12 &&
             buffer[pos] == 'R' && buffer[pos + 1] == 'I' && buffer[pos + 2] == 'F' && buffer[pos + 3] == 'F' &&
             buffer[pos + 8] == 'W' && buffer[pos + 9] == 'A' && buffer[pos + 10] == 'V' && buffer[pos + 11] == 'E';
@@ -518,7 +514,6 @@ namespace HDZUtils
         }
 
         size_t startIT = 0;
-#if 1
         // Read head sizes 0xB53B
         startIT++;
 
@@ -553,81 +548,37 @@ namespace HDZUtils
 
             ParseHeadStrings( currentHeadDef, buffer, headPos, pixelImage );
             ParseWAVFiles( currentHeadDef, buffer, mutated_buffer, pixelImage, headPos );
-        }
-
-#else
-
-        int wav_count = 0;
-        int bmp_count = 0;
-        std::string wav_filename;
-        size_t character_num = 0;
-
-        std::string CharacterID;
-        HeadDef* CurrentHeadDef = nullptr;
-        size_t maxFileSize = 0;
-        bool exportFiles = true;
-        size_t lastWAV = 0;
-        bool bmpArraySizePosCheck = false;
-
-        while (pos < buffer.size())
-        {
 
 
-            // BMP extraction
-            std::string textureOutput = "Assets/RAW/TEXTURES/" + std::to_string( bmp_count ) + ".bmp";
-            size_t bmp_size = 0;
-            if (extractAndWriteBMP( buffer, pos, textureOutput, bmp_size, exportFiles ))
             {
-                if (!bmpArraySizePosCheck)
+                // BMP extraction
+                // BMP location is at a 30b offset from the header.
+                // u32 value
+                uint32_t bmpStartPos = ReadValue<uint32_t>( buffer, headPos + 30 );
+                size_t bmpPos = headPos + bmpStartPos;
+                for (size_t i = 0; i < 3; ++i)
                 {
-                    bmpArraySizePosCheck = true;
-                    //ME_ASSERT(pos - 0x7E == 3);
-                }
-                if (CurrentHeadDef)
-                    CurrentHeadDef->HeadPortraits.push_back( textureOutput );
-                if (pos + bmp_size < pixelImage.GetLength())
-                    pixelImage.SetPixelRange( pos, pos + bmp_size, PixelCategory::BMPFile );
+                    std::string textureOutput = "Assets/RAW/TEXTURES/" + currentHeadDef.ID + "_" + std::to_string(i) + ".bmp";
+                    size_t bmp_size = 0;
+                    if (extractAndWriteBMP( buffer, bmpPos, textureOutput, bmp_size, true ))
+                    {
+                        currentHeadDef.HeadPortraits.push_back( textureOutput );
+                        if (bmpPos + bmp_size < pixelImage.GetLength())
+                            pixelImage.SetPixelRange( bmpPos, bmpPos + bmp_size, PixelCategory::BMPFile );
 
-                // *** NEW: Fill texture region with visible marker, keep "BM" header ***
-                if (bmp_size >= 2)
-                {
-                    memcpy( &mutated_buffer[pos], "BM", 2 ); // Keep "BM" header
-                    std::fill( mutated_buffer.begin() + pos + 2,
-                        mutated_buffer.begin() + pos + bmp_size,
-                        0xBB ); // Different byte than WAV for easy distinction
-                }
+                        if (bmp_size >= 2)
+                        {
+                            memcpy( &mutated_buffer[bmpPos], "BM", 2 );
+                            std::fill( mutated_buffer.begin() + bmpPos + 2,
+                                mutated_buffer.begin() + bmpPos + bmp_size,
+                                0xBB );
+                        }
 
-                bmp_count++;
-            }
-
-            // Potential head entry parsing
-            if (buffer[pos] == 0x4A && buffer[pos + 0xB0] == 0x48)
-            {
-                if (buffer[pos + 1] == 0x00 && buffer[pos + 2] == 0x00 &&
-                    buffer[pos + 3] == 0x00 && buffer[pos + 4] == 0x00 &&
-                    buffer[pos + 5] == 0x00)
-                {
-
-                    string_output << '[' << pos << "] Last Character\n";
-
-                    size_t start = pos + 0xCB;
-                    size_t end = start;
-
-                    HeadDef newDef;
-                    //ParseHeadStrings( buffer, start, newDef );
-                    outHeadList.push_back( std::move( newDef ) );
-                    CurrentHeadDef = &outHeadList.back();
-                    CharacterID = std::to_string( character_num );
-                    CurrentHeadDef->CharacterIndex = character_num;
-
-                    pixelImage.SetPixelRange( start, end, PixelCategory::CharacterName );
-                    character_num++;
+                        bmpPos += bmp_size;
+                    }
                 }
             }
-
-            ++pos;
         }
-#endif
 
         string_output.close();
 
