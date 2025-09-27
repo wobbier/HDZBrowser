@@ -437,6 +437,68 @@ namespace HDZUtils
     }
 
 
+    // WAV section detection
+    void ParseWAVFiles( HeadDef& inHeadRef, std::vector<uint8_t>& inBuffer, std::vector<uint8_t>& inMutatedBuffer, PixelImage& inPixelImage, size_t inHeaderStartPos, bool exportFiles = true )
+    {
+        uint32_t wavStart = ReadValue<uint32_t>( inBuffer, inHeaderStartPos + 50 );
+        uint8_t numWavs = ReadValue<uint8_t>( inBuffer, inHeaderStartPos + 62 );
+        size_t wavPos = inHeaderStartPos + wavStart;
+        for (size_t i = 0; i < numWavs; ++i)
+        {
+            // The location of the wav table is located at 50 bytes into the header.
+            // The 4 bytes before the RIFF label is the size in bytes ( even though it's in the WAV header )
+            // The 2 bytes before that might be the audio type.
+
+            uint16_t possibleWavFlags = ReadValueAdv<uint16_t>( inBuffer, wavPos );
+            uint32_t wavFileSize = ReadValueAdv<uint32_t>( inBuffer, wavPos );
+
+            ME_ASSERT_MSG( is_wav_header( inBuffer, wavPos ), "Failed to detect a wav header." );
+
+            uint32_t file_size = read_little_endian_uint32( inBuffer, wavPos + 4 ) + 8;
+            ME_ASSERT_MSG( wavFileSize == file_size, "Wav Size Mismatch." );
+            DBG( "WAV at pos={} claims size={}", wavPos, file_size );
+
+            if (wavPos + file_size > inBuffer.size())
+            {
+                std::cerr << "Warning: Incomplete WAV file detected. Skipping.\n";
+                break;
+            }
+
+            std::string wav_filename = "Assets/RAW/AUDIO/" + std::to_string( inHeadRef.CharacterIndex ) +
+                "_" + ( inHeadRef.RawID ) + "_" + std::to_string( i ) + "_" + std::to_string( possibleWavFlags ) + ".wav";
+
+            if (exportFiles)
+            {
+                std::ofstream output( wav_filename, std::ios::binary );
+                if (!output)
+                {
+                    std::cerr << "Error: Could not create " << wav_filename << "\n";
+                    return;
+                }
+                output.write( reinterpret_cast<const char*>( &inBuffer[wavPos] ), file_size );
+                output.close();
+                std::cout << "Extracted Audio: " << wav_filename << "\n";
+            }
+
+            DBG("[ {} ][ {} ] {}", wavPos, file_size, wav_filename );
+
+            inHeadRef.AssociatedAudioFiles.push_back( wav_filename );
+
+            if (file_size >= 4)
+            {
+                memcpy( &inMutatedBuffer[wavPos], "RIFF", 4 );
+                std::fill( inMutatedBuffer.begin() + wavPos + 4,
+                    inMutatedBuffer.begin() + wavPos + file_size,
+                    0xAA );
+            }
+
+            inPixelImage.SetPixelRange( wavPos, wavPos + file_size, PixelCategory::WAVFile );
+
+            wavPos += wavFileSize;
+        }
+    }
+
+
     void parse_hdz_file( const std::string& input_filename,
         std::vector<HeadDef>& outHeadList,
         std::vector<HeadDef>& outDeadHeadList,
@@ -495,67 +557,7 @@ namespace HDZUtils
             }
 
             ParseHeadStrings( buffer, headPos, currentHeadDef );
-
-            // WAV section detection
-            {
-                uint32_t wavStart = ReadValue<uint32_t>( buffer, headPos + 50 );
-                uint8_t numWavs = ReadValue<uint8_t>( buffer, headPos + 62 );
-                size_t wavPos = headPos + wavStart;
-                bool exportFiles = true;
-                for (size_t i = 0; i < numWavs; ++i)
-                {
-                    // The location of the wav table is located at 50 bytes into the header.
-                    // The 4 bytes before the RIFF label is the size in bytes ( even though it's in the WAV header )
-                    // The 2 bytes before that might be the audio type.
-
-                    uint16_t possibleWavFlags = ReadValueAdv<uint16_t>( buffer, wavPos );
-                    uint32_t wavFileSize = ReadValueAdv<uint32_t>( buffer, wavPos );
-
-                    ME_ASSERT_MSG( is_wav_header( buffer, wavPos ), "Failed to detect a wav header." );
-
-                    uint32_t file_size = read_little_endian_uint32( buffer, wavPos + 4 ) + 8;
-                    ME_ASSERT_MSG( wavFileSize == file_size, "Wav Size Mismatch." );
-                    string_output << "WAV at pos=" << wavPos << " claims size=" << file_size << '\n';
-
-                    if (wavPos + file_size > buffer.size())
-                    {
-                        std::cerr << "Warning: Incomplete WAV file detected. Skipping.\n";
-                        break;
-                    }
-
-                    std::string wav_filename = "Assets/RAW/AUDIO/" + std::to_string( currentHeadDef.CharacterIndex ) +
-                        "_" + ( currentHeadDef.RawID ) + "_" + std::to_string( i ) + "_" + std::to_string( possibleWavFlags ) + ".wav";
-
-                    if (exportFiles)
-                    {
-                        std::ofstream output( wav_filename, std::ios::binary );
-                        if (!output)
-                        {
-                            std::cerr << "Error: Could not create " << wav_filename << "\n";
-                            return;
-                        }
-                        output.write( reinterpret_cast<const char*>( &buffer[wavPos] ), file_size );
-                        output.close();
-                        std::cout << "Extracted Audio: " << wav_filename << "\n";
-                    }
-
-                    string_output << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
-
-                    currentHeadDef.AssociatedAudioFiles.push_back( wav_filename );
-
-                    if (file_size >= 4)
-                    {
-                        memcpy( &mutated_buffer[wavPos], "RIFF", 4 );
-                        std::fill( mutated_buffer.begin() + wavPos + 4,
-                            mutated_buffer.begin() + wavPos + file_size,
-                            0xAA );
-                    }
-
-                    pixelImage.SetPixelRange( wavPos, wavPos + file_size, PixelCategory::WAVFile );
-
-                    wavPos += wavFileSize;
-                }
-            }
+            ParseWAVFiles( currentHeadDef, buffer, mutated_buffer, pixelImage, headPos );
         }
 
 #else
@@ -807,7 +809,7 @@ namespace HDZUtils
                     }
 
                     foundFiles.push_back( { format, static_cast<uint32_t>( i ), estimatedLength } );
-                    BRUH_FMT( "%s: %i", format.c_str(), i );
+                    DBG( "{}: {}", format.c_str(), i );
                 }
             }
         }
