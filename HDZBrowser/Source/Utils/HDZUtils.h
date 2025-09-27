@@ -386,9 +386,21 @@ namespace HDZUtils
     }
 
 
-    void ParseHeadStrings( std::vector<uint8_t>& inBuffer, size_t inStartingOffset, HeadDef& inHead )
+    inline std::string ReadLocString( std::vector<uint8_t>& inBuffer, std::vector<uint8_t>::iterator& start, std::vector<uint8_t>::iterator& end, size_t& endNum, size_t inSize )
+    {
+        end = start + inSize;
+        std::string value = std::string( start, end );
+        start = end;
+        endNum += inSize;
+        return value;
+    }
+
+
+    void ParseHeadStrings( HeadDef& inHead, std::vector<uint8_t>& inBuffer, size_t inStartingOffset, PixelImage& inPixelImage )
     {
         inStartingOffset += 76; // The string lengths are offset by a fixed amount from the start of the head entry.
+        size_t pixelImageStart = inStartingOffset + 133;
+        size_t pixelImageEnd = pixelImageStart;
 
         // The loc strings are offset by a fixed amount from the start of the head entry.
         auto start = inBuffer.begin() + inStartingOffset + 133;
@@ -404,36 +416,19 @@ namespace HDZUtils
         uint8_t swedishLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
         uint8_t extraKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset ); // Unkown what this is atm...
 
-        inHead.ID = std::string( start, end + headIDLength );
+        end = start + headIDLength;
+        inHead.ID = ReadLocString( inBuffer, start, end, pixelImageEnd, headIDLength );
         inHead.RawID = inHead.ID;
 
-        start += headIDLength;
-        end = start + englishLocKeyLength;
-        inHead.EnglishLocKey = std::string( start, end );
+        inHead.EnglishLocKey = ReadLocString( inBuffer, start, end, pixelImageEnd, englishLocKeyLength );
+        inHead.SpanishLocKey = ReadLocString( inBuffer, start, end, pixelImageEnd, spanishLocKeyLength );
+        inHead.ItalianLocKey = ReadLocString( inBuffer, start, end, pixelImageEnd, italianLocKeyLength );
+        inHead.FrenchLocKey = ReadLocString( inBuffer, start, end, pixelImageEnd, frenchLocKeyLength );
+        inHead.DutchLocKey = ReadLocString( inBuffer, start, end, pixelImageEnd, dutchLocKeyLength );
+        inHead.SwedishLocKey = ReadLocString( inBuffer, start, end, pixelImageEnd, swedishLocKeyLength );
+        inHead.ExtraLocKey = ReadLocString( inBuffer, start, end, pixelImageEnd, extraKeyLength );
 
-        start += englishLocKeyLength;
-        end = start + spanishLocKeyLength;
-        inHead.SpanishLocKey = std::string( start, end );
-
-        start += spanishLocKeyLength;
-        end = start + italianLocKeyLength;
-        inHead.ItalianLocKey = std::string( start, end );
-
-        start += italianLocKeyLength;
-        end = start + frenchLocKeyLength;
-        inHead.FrenchLocKey = std::string( start, end );
-
-        start += frenchLocKeyLength;
-        end = start + dutchLocKeyLength;
-        inHead.DutchLocKey = std::string( start, end );
-
-        start += dutchLocKeyLength;
-        end = start + swedishLocKeyLength;
-        inHead.SwedishLocKey = std::string( start, end );
-
-        start += swedishLocKeyLength;
-        end = start + extraKeyLength;
-        inHead.ExtraLocKey = std::string( start, end );
+        inPixelImage.SetPixelRange( pixelImageStart, pixelImageEnd, PixelCategory::CharacterName );
     }
 
 
@@ -556,7 +551,7 @@ namespace HDZUtils
                 writeBytesToFile( buffer, headPos, headDataEndPos, "Assets/RAW/HEAD_CASE_" + std::to_string( i ) );
             }
 
-            ParseHeadStrings( buffer, headPos, currentHeadDef );
+            ParseHeadStrings( currentHeadDef, buffer, headPos, pixelImage );
             ParseWAVFiles( currentHeadDef, buffer, mutated_buffer, pixelImage, headPos );
         }
 

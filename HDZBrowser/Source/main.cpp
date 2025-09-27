@@ -9,7 +9,7 @@ int main( int argc, char** argv )
     flags.isDockingEnabled = true;
     flags.toolName = "HDZ Browser";
 
-    CLog::GetInstance().SetLogVerbosity( CLog::LogType::Warning );
+    CLog::GetInstance().SetLogVerbosity( CLog::LogType::Debug );
     HDZBrowserTool tool( flags );
     tool.Start();
 
