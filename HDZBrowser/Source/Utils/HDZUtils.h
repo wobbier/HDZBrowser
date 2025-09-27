@@ -471,7 +471,7 @@ namespace HDZUtils
                 std::cout << "Extracted Audio: " << wav_filename << "\n";
             }
 
-            DBG("[ {} ][ {} ] {}", wavPos, file_size, wav_filename );
+            DBG( "[ {} ][ {} ] {}", wavPos, file_size, wav_filename );
 
             inHeadRef.AssociatedAudioFiles.push_back( wav_filename );
 
@@ -558,7 +558,7 @@ namespace HDZUtils
                 size_t bmpPos = headPos + bmpStartPos;
                 for (size_t i = 0; i < 3; ++i)
                 {
-                    std::string textureOutput = "Assets/RAW/TEXTURES/" + currentHeadDef.ID + "_" + std::to_string(i) + ".bmp";
+                    std::string textureOutput = "Assets/RAW/TEXTURES/" + std::to_string( currentHeadDef.CharacterIndex ) + "_" + currentHeadDef.ID + "_" + std::to_string( i ) + ".bmp";
                     size_t bmp_size = 0;
                     if (extractAndWriteBMP( buffer, bmpPos, textureOutput, bmp_size, true ))
                     {

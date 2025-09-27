@@ -8,22 +8,45 @@ void DrawHeadItem( HeadDef& inHead )
     std::string headerWithIndex = std::to_string( inHead.CharacterIndex ) + ": " + inHead.ID;
     if( ImGui::TreeNodeEx( headerWithIndex.c_str(), node_flags ) )
     {
-        for( auto& child : inHead.AssociatedAudioFiles )
+        if (ImGui::TreeNodeEx( "Audio", node_flags ))
         {
-            node_flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-            if( ImGui::TreeNodeEx( child.c_str(), node_flags ) )
+            for (auto& child : inHead.AssociatedAudioFiles)
             {
-                // do more
+                ImGuiTreeNodeFlags local_flags = node_flags | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                if (ImGui::TreeNodeEx( child.c_str(), local_flags ))
+                {
+                    // do more
+                }
             }
+            ImGui::TreePop();
         }
-        for( auto& child : inHead.HeadPortraits )
+
+        if (ImGui::TreeNodeEx( "Textures", node_flags ))
         {
-            node_flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
-            if( ImGui::TreeNodeEx( child.c_str(), node_flags ) )
+            for (auto& child : inHead.HeadPortraits)
             {
-                // do more
+                ImGuiTreeNodeFlags local_flags = node_flags | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+                if (ImGui::TreeNodeEx( child.c_str(), local_flags ))
+                {
+                    // do more
+                }
             }
+            ImGui::TreePop();
         }
+
+        if (ImGui::TreeNodeEx( "Localization", node_flags))
+        {
+            ImGuiTreeNodeFlags local_flags = node_flags | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+            ImGui::TreeNodeEx( inHead.EnglishLocKey.c_str(), local_flags );
+            ImGui::TreeNodeEx( inHead.SpanishLocKey.c_str(), local_flags );
+            ImGui::TreeNodeEx( inHead.ItalianLocKey.c_str(), local_flags );
+            ImGui::TreeNodeEx( inHead.FrenchLocKey.c_str(), local_flags );
+            ImGui::TreeNodeEx( inHead.DutchLocKey.c_str(), local_flags );
+            ImGui::TreeNodeEx( inHead.SwedishLocKey.c_str(), local_flags );
+            ImGui::TreeNodeEx( inHead.ExtraLocKey.c_str(), local_flags );
+            ImGui::TreePop();
+        }
+
         ImGui::TreePop();
     }
 }
