@@ -46,7 +46,7 @@ namespace HDZUtils
     };
 #pragma pack(pop)
 
-// Known texture format signatures
+    // Known texture format signatures
     struct TextureSignature
     {
         const char* name;
@@ -66,7 +66,7 @@ namespace HDZUtils
     void scanBinaryFile( const std::string& filePath )
     {
         std::ifstream file( filePath, std::ios::binary );
-        if( !file )
+        if (!file)
         {
             std::cerr << "Error opening file: " << filePath << std::endl;
             return;
@@ -80,11 +80,11 @@ namespace HDZUtils
         std::cout << "--------------------------------------------------\n";
 
         // Search for known format signatures
-        for( const auto& sig : signatures )
+        for (const auto& sig : signatures)
         {
-            for( size_t i = 0; i <= fileSize - sig.magicSize; ++i )
+            for (size_t i = 0; i <= fileSize - sig.magicSize; ++i)
             {
-                if( std::memcmp( &data[i], sig.magic, sig.magicSize ) == 0 )
+                if (std::memcmp( &data[i], sig.magic, sig.magicSize ) == 0)
                 {
                     std::cout << "Found " << sig.name << " at offset: " << std::hex << "0x" << i << std::dec << "\n";
                 }
@@ -94,13 +94,13 @@ namespace HDZUtils
         // Check for possible texture dimensions (e.g., 256x256, 512x512)
         std::vector<int> commonSizes = { 64, 128, 256, 512, 1024, 2048 };
 
-        for( size_t i = 0; i < fileSize - 4; i += 2 )
+        for (size_t i = 0; i < fileSize - 4; i += 2)
         {
             uint16_t width = *reinterpret_cast<uint16_t*>( &data[i] );
             uint16_t height = *reinterpret_cast<uint16_t*>( &data[i + 2] );
 
-            if( std::find( commonSizes.begin(), commonSizes.end(), width ) != commonSizes.end() &&
-                std::find( commonSizes.begin(), commonSizes.end(), height ) != commonSizes.end() )
+            if (std::find( commonSizes.begin(), commonSizes.end(), width ) != commonSizes.end() &&
+                std::find( commonSizes.begin(), commonSizes.end(), height ) != commonSizes.end())
             {
                 std::cout << "Possible texture dimensions: " << width << "x" << height
                     << " at offset: " << std::hex << "0x" << i << std::dec << "\n";
@@ -110,7 +110,7 @@ namespace HDZUtils
         std::cout << "Scan completed.\n";
     }
 
-// Structure for a standard TGA header (18 bytes)
+    // Structure for a standard TGA header (18 bytes)
 #pragma pack(push, 1)
     struct TGAHeader
     {
@@ -129,7 +129,7 @@ namespace HDZUtils
     };
 #pragma pack(pop)
 
-// List of known TGA headers (uncompressed & compressed)
+    // List of known TGA headers (uncompressed & compressed)
     std::vector<std::vector<uint8_t>> tgaSignatures = {
         {0x00, 0x00, 0x02, 0x00},  // Uncompressed Truecolor TGA
         {0x00, 0x00, 0x10, 0x00}   // RLE Compressed Truecolor TGA
@@ -142,16 +142,31 @@ namespace HDZUtils
         return std::vector<uint8_t>( ( std::istreambuf_iterator<char>( file ) ), std::istreambuf_iterator<char>() );
     }
 
+    template<typename T>
+    T ReadValue( std::vector<uint8_t>& inBuff, size_t outPos )
+    {
+        T* val = reinterpret_cast<T*>( &inBuff[outPos] );
+        return *val;
+    }
+
+    template<typename T>
+    T ReadValueAdv( std::vector<uint8_t>& inBuff, size_t& outPos )
+    {
+        T val = ReadValue<T>( inBuff, outPos );
+        outPos += sizeof( T );
+        return val;
+    }
+
     // Function to find TGA headers inside the binary
     std::vector<size_t> findTGAHeaders( const std::vector<uint8_t>& data )
     {
         std::vector<size_t> offsets;
 
-        for( size_t i = 0; i <= data.size() - 18; ++i )
+        for (size_t i = 0; i <= data.size() - 18; ++i)
         {
-            for( const auto& sig : tgaSignatures )
+            for (const auto& sig : tgaSignatures)
             {
-                if( std::memcmp( &data[i], sig.data(), sig.size() ) == 0 )
+                if (std::memcmp( &data[i], sig.data(), sig.size() ) == 0)
                 {
                     offsets.push_back( i );
                     break;
@@ -167,9 +182,9 @@ namespace HDZUtils
     {
         int count = 0;
 
-        for( size_t offset : offsets )
+        for (size_t offset : offsets)
         {
-            if( offset + sizeof( TGAHeader ) > data.size() )
+            if (offset + sizeof( TGAHeader ) > data.size())
             {
                 std::cerr << "Invalid TGA header at offset: 0x" << std::hex << offset << std::dec << "\n";
                 continue;
@@ -180,7 +195,7 @@ namespace HDZUtils
             std::memcpy( &header, &data[offset], sizeof( TGAHeader ) );
 
             // Validate width/height
-            if( header.width == 0 || header.height == 0 || header.bitsPerPixel == 0 )
+            if (header.width == 0 || header.height == 0 || header.bitsPerPixel == 0)
             {
                 std::cerr << "Skipping invalid TGA at offset: 0x" << std::hex << offset << std::dec << "\n";
                 continue;
@@ -190,7 +205,7 @@ namespace HDZUtils
             size_t pixelDataSize = ( header.width * header.height * ( header.bitsPerPixel / 8 ) );
             size_t estimatedFileSize = sizeof( TGAHeader ) + pixelDataSize;
 
-            if( offset + estimatedFileSize > data.size() )
+            if (offset + estimatedFileSize > data.size())
             {
                 std::cerr << "Truncated TGA at offset: 0x" << std::hex << offset << std::dec << "\n";
                 continue;
@@ -201,7 +216,7 @@ namespace HDZUtils
 
             // Write the extracted TGA file
             std::ofstream outFile( filename, std::ios::binary );
-            if( !outFile )
+            if (!outFile)
             {
                 std::cerr << "Error writing " << filename << "\n";
                 continue;
@@ -222,7 +237,7 @@ namespace HDZUtils
         std::string outputDir = "Assets/RAW/TEXTURES";  // Output directory (use "." for current directory)
 
         std::vector<uint8_t> data = readBinaryFile( filePath );
-        if( data.empty() )
+        if (data.empty())
         {
             std::cerr << "Failed to read binary file!\n";
             return 1;
@@ -230,7 +245,7 @@ namespace HDZUtils
 
         // Find TGA headers
         std::vector<size_t> tgaOffsets = findTGAHeaders( data );
-        if( tgaOffsets.empty() )
+        if (tgaOffsets.empty())
         {
             std::cerr << "No TGA files found.\n";
             return 0;
@@ -245,7 +260,7 @@ namespace HDZUtils
 
     bool is_wav_header( const std::vector<uint8_t>& buffer, size_t pos )
     {
-        if( pos == 0x52F531 )
+        if (pos == 0x52F531)
         {
             //ME_ASSERT(false);
         }
@@ -270,9 +285,9 @@ namespace HDZUtils
     std::string extractFirstWord( const std::string& str )
     {
         std::string firstWord;
-        for( char ch : str )
+        for (char ch : str)
         {
-            if( !std::isalpha( ch ) ) break;
+            if (!std::isalpha( ch )) break;
             firstWord += std::toupper( ch );
         }
         return firstWord;
@@ -282,11 +297,11 @@ namespace HDZUtils
     bool isFirstWordRepeated( const std::string& str )
     {
         size_t start = str.find_first_not_of( ' ' );
-        if( start == std::string::npos ) return false;
+        if (start == std::string::npos) return false;
 
         std::string trimmed = str.substr( start );
         std::string firstWord = extractFirstWord( trimmed );
-        if( firstWord.empty() ) return false; // No valid first word
+        if (firstWord.empty()) return false; // No valid first word
 
         // Convert entire string to uppercase for case-insensitive search
         std::string upperStr = str;
@@ -294,7 +309,7 @@ namespace HDZUtils
 
         // Find first occurrence
         size_t firstPos = upperStr.find( firstWord );
-        if( firstPos == std::string::npos ) return false;
+        if (firstPos == std::string::npos) return false;
 
         // Search for another occurrence
         size_t secondPos = upperStr.find( firstWord, firstPos + firstWord.size() );
@@ -304,7 +319,7 @@ namespace HDZUtils
 
     bool writeBytesToFile( const std::vector<uint8_t>& source, size_t start, size_t end, const std::string& filename )
     {
-        if( start >= end || end > source.size() )
+        if (start >= end || end > source.size())
         {
             std::cerr << "Invalid range: start=" << start << ", end=" << end << ", size=" << source.size() << std::endl;
             return false;
@@ -312,7 +327,7 @@ namespace HDZUtils
 
         // Open file for binary writing
         std::ofstream outFile( filename, std::ios::binary );
-        if( !outFile )
+        if (!outFile)
         {
             std::cerr << "Error opening file: " << filename << std::endl;
             return false;
@@ -328,12 +343,12 @@ namespace HDZUtils
 
     size_t isBMPHeader( const std::vector<uint8_t>& data, size_t pos )
     {
-        if( pos >= data.size() )
+        if (pos >= data.size())
         {
             return std::string::npos;
         }
 
-        if( data[pos] == 0x42 && data[pos + 1] == 0x4D )
+        if (data[pos] == 0x42 && data[pos + 1] == 0x4D)
         { // "BM" signature
             return pos; // Return the position where BMP starts
         }
@@ -344,7 +359,7 @@ namespace HDZUtils
     bool extractAndWriteBMP( const std::vector<uint8_t>& data, size_t pos, const std::string& outputFile, size_t& outSize, bool writeFileToDisk = false )
     {
         size_t bmpOffset = isBMPHeader( data, pos );
-        if( bmpOffset == std::string::npos )
+        if (bmpOffset == std::string::npos)
         {
             //std::cerr << "BMP header not found!\n";
             return false;
@@ -354,7 +369,7 @@ namespace HDZUtils
         BITMAPFILEHEADER fileHeader;
         BITMAPINFOHEADER infoHeader;
 
-        if( bmpOffset + sizeof( BITMAPFILEHEADER ) + sizeof( BITMAPINFOHEADER ) > data.size() )
+        if (bmpOffset + sizeof( BITMAPFILEHEADER ) + sizeof( BITMAPINFOHEADER ) > data.size())
         {
             std::cerr << "Incomplete BMP header in data!\n";
             return false;
@@ -364,14 +379,14 @@ namespace HDZUtils
         std::memcpy( &infoHeader, &data[bmpOffset + sizeof( fileHeader )], sizeof( infoHeader ) );
 
         // Validate BMP signature
-        if( fileHeader.bfType != 0x4D42 )
+        if (fileHeader.bfType != 0x4D42)
         {
             std::cerr << "Invalid BMP signature!\n";
             return false;
         }
 
         // Validate BMP pixel data offset
-        if( fileHeader.bfOffBits >= data.size() )
+        if (fileHeader.bfOffBits >= data.size())
         {
             //std::cerr << "Invalid pixel data offset!\n";
             return false;
@@ -380,17 +395,17 @@ namespace HDZUtils
         // Extract pixel data
         size_t pixelDataStart = bmpOffset + fileHeader.bfOffBits;
         size_t pixelDataSize = fileHeader.bfSize - fileHeader.bfOffBits;
-        if( pixelDataStart + pixelDataSize > data.size() )
+        if (pixelDataStart + pixelDataSize > data.size())
         {
             std::cerr << "Potential BMP Pixel data exceeds buffer size!\n";
             return false;
         }
 
-        if( writeFileToDisk )
+        if (writeFileToDisk)
         {
             // Write the extracted BMP to file
             std::ofstream outFile( outputFile, std::ios::binary );
-            if( !outFile )
+            if (!outFile)
             {
                 std::cerr << "Failed to open output file!\n";
                 return false;
@@ -412,84 +427,73 @@ namespace HDZUtils
     }
 
 
-    void ParseHeadStrings(const std::vector<uint8_t>& inBuffer, size_t inStartingOffset, HeadDef& inHead)
+    void ParseHeadStrings( std::vector<uint8_t>& inBuffer, size_t inStartingOffset, HeadDef& inHead )
     {
-        // this is relative to the starting of the string section and not the start of the head def because I'm unsure of the start of that atm.
-        size_t headIDLength = inBuffer[inStartingOffset - 0x85];
-        size_t englishLocKeyLength = inBuffer[inStartingOffset - 0x84];
-        size_t spanishLocKeyLength = inBuffer[inStartingOffset - 0x83];
-        size_t italianLocKeyLength = inBuffer[inStartingOffset - 0x82];
-        size_t frenchLocKeyLength = inBuffer[inStartingOffset - 0x81]; // Unkown what this is atm...
-        size_t dutchLocKeyLength = inBuffer[inStartingOffset - 0x80];
-        size_t swedishLocKeyLength = inBuffer[inStartingOffset - 0x7F];
-        size_t extraKeyLength = inBuffer[inStartingOffset - 0x7E]; // Unkown what this is atm...
+        inStartingOffset += 76; // The string lengths are offset by a fixed amount from the start of the head entry.
 
-        // Consider a valid string if it's at least 10 characters long
-        auto start = inBuffer.begin() + inStartingOffset;
-        auto end = inBuffer.begin() + inStartingOffset;
-        inHead.ID = std::string(start, end + headIDLength);
+        // The loc strings are offset by a fixed amount from the start of the head entry.
+        auto start = inBuffer.begin() + inStartingOffset + 133;
+        auto end = inBuffer.begin() + inStartingOffset + 133;
+
+        // this is relative to the starting of the string section and not the start of the head def because I'm unsure of the start of that atm.
+        uint8_t headIDLength        = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t englishLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t spanishLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t italianLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t frenchLocKeyLength  = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset ); // Unkown what this is atm...
+        uint8_t dutchLocKeyLength   = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t swedishLocKeyLength = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset );
+        uint8_t extraKeyLength      = ReadValueAdv<uint8_t>( inBuffer, inStartingOffset ); // Unkown what this is atm...
+
+        inHead.ID = std::string( start, end + headIDLength );
         inHead.RawID = inHead.ID;
 
         start += headIDLength;
         end = start + englishLocKeyLength;
-        inHead.EnglishLocKey = std::string(start, end);
+        inHead.EnglishLocKey = std::string( start, end );
 
         start += englishLocKeyLength;
         end = start + spanishLocKeyLength;
-        inHead.SpanishLocKey = std::string(start, end);
+        inHead.SpanishLocKey = std::string( start, end );
 
         start += spanishLocKeyLength;
         end = start + italianLocKeyLength;
-        inHead.ItalianLocKey = std::string(start, end);
+        inHead.ItalianLocKey = std::string( start, end );
 
         start += italianLocKeyLength;
         end = start + frenchLocKeyLength;
-        inHead.FrenchLocKey = std::string(start, end);
+        inHead.FrenchLocKey = std::string( start, end );
 
         start += frenchLocKeyLength;
         end = start + dutchLocKeyLength;
-        inHead.DutchLocKey = std::string(start, end);
+        inHead.DutchLocKey = std::string( start, end );
 
         start += dutchLocKeyLength;
         end = start + swedishLocKeyLength;
-        inHead.SwedishLocKey = std::string(start, end);
+        inHead.SwedishLocKey = std::string( start, end );
 
         start += swedishLocKeyLength;
         end = start + extraKeyLength;
-        inHead.ExtraLocKey = std::string(start, end);
+        inHead.ExtraLocKey = std::string( start, end );
     }
 
-    template<typename T>
-    T ReadValue(std::vector<uint8_t>& inBuff, size_t outPos)
-    {
-        T* val = reinterpret_cast<T*>(&inBuff[outPos]);
-        return *val;
-    }
 
-    template<typename T>
-    T ReadValueAdv(std::vector<uint8_t>& inBuff, size_t& outPos)
-    {
-        T val = ReadValue<T>(inBuff, outPos);
-        outPos += sizeof(T);
-        return val;
-    }
-
-    void parse_hdz_file(const std::string& input_filename,
+    void parse_hdz_file( const std::string& input_filename,
         std::vector<HeadDef>& outHeadList,
         std::vector<HeadDef>& outDeadHeadList,
-        PixelImage& pixelImage)
+        PixelImage& pixelImage )
     {
-        std::ifstream input(input_filename, std::ios::binary);
+        std::ifstream input( input_filename, std::ios::binary );
         if (!input) {
             std::cerr << "Error: Could not open " << input_filename << "\n";
             return;
         }
 
         // Load entire file into memory
-        std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(input)), {});
+        std::vector<uint8_t> buffer( ( std::istreambuf_iterator<char>( input ) ), {} );
         std::vector<uint8_t> mutated_buffer = buffer; // Copy for visualization
 
-        std::ofstream string_output("Assets/RAW/extracted_strings.txt");
+        std::ofstream string_output( "Assets/RAW/extracted_strings.txt" );
         if (!string_output) {
             std::cerr << "Error: Could not create extracted_strings.txt\n";
             return;
@@ -499,44 +503,38 @@ namespace HDZUtils
         // Read head sizes 0xB53B
         pos++;
 
-        uint32_t numHeads = ReadValueAdv<uint32_t>(buffer, pos);
-        outHeadList.resize(numHeads);
+        uint32_t numHeads = ReadValueAdv<uint32_t>( buffer, pos );
+        outHeadList.resize( numHeads );
         size_t headDataSizeStartingIndex = pos;
 
         for (size_t i = 0; i < numHeads; ++i)
         {
+            size_t currentHeadIndex = headDataSizeStartingIndex + i * sizeof( uint32_t );
             HeadDef& currentHeadDef = outHeadList[i];
             HeadDef::HeaderInfo& currentHeadHeader = currentHeadDef.Header;
 
-            // Filling the binary copy to make HxD visually cleaner
-            std::fill(mutated_buffer.begin() + headDataSizeStartingIndex,
-                mutated_buffer.begin() + headDataSizeStartingIndex + sizeof(uint32_t),
-                0xFF);
+            currentHeadDef.CharacterIndex = i;
 
-            uint32_t headPos = ReadValueAdv<uint32_t>(buffer, headDataSizeStartingIndex);
-            uint16_t headerBits = ReadValue<uint16_t>(buffer, headPos); //Could be just an int8
-            uint32_t dataSize = ReadValue<uint32_t>(buffer, headPos + sizeof(headerBits));
+            // Filling the binary copy to make HxD visually cleaner
+            std::fill( mutated_buffer.begin() + currentHeadIndex,
+                mutated_buffer.begin() + currentHeadIndex + sizeof( uint32_t ),
+                0xFF );
+
+            uint32_t headPos = ReadValueAdv<uint32_t>( buffer, currentHeadIndex );
+            uint16_t headerBits = ReadValue<uint16_t>( buffer, headPos ); //Could be just an int8
+            uint32_t dataSize = ReadValue<uint32_t>( buffer, headPos + sizeof( headerBits ) );
             currentHeadHeader.DataSize = dataSize;
 
             // Save out our character binary and set our known bytes in our preview.
             {
                 size_t headDataEndPos = headPos + dataSize - 12; // -12 since this doesn't count the header
-                pixelImage.SetPixelRange(headPos, headDataEndPos, PixelCategory::HeadInfo);
-                writeBytesToFile(buffer, headPos, headDataEndPos, "Assets/RAW/HEAD_CASE_" + std::to_string(i));
+                pixelImage.SetPixelRange( headPos, headDataEndPos, PixelCategory::HeadInfo );
+                writeBytesToFile( buffer, headPos, headDataEndPos, "Assets/RAW/HEAD_CASE_" + std::to_string( i ) );
             }
+
+            ParseHeadStrings( buffer, headPos, currentHeadDef );
         }
 
-        // Write out the mutated visualization file
-        std::string visualized_filename = input_filename + ".visualized.bin";
-        std::ofstream viz_out(visualized_filename, std::ios::binary);
-        if (viz_out) {
-            viz_out.write(reinterpret_cast<const char*>(mutated_buffer.data()), mutated_buffer.size());
-            viz_out.close();
-            std::cout << "Created visualized file: " << visualized_filename << "\n";
-        }
-        else {
-            std::cerr << "Error: Could not create " << visualized_filename << "\n";
-        }
 #if 0
 
         int wav_count = 0;
@@ -553,9 +551,9 @@ namespace HDZUtils
 
         while (pos < buffer.size()) {
             // WAV section detection
-            if (is_wav_header(buffer, pos)) {
+            if (is_wav_header( buffer, pos )) {
                 bmpArraySizePosCheck = false;
-                uint32_t file_size = read_little_endian_uint32(buffer, pos + 4) + 8;
+                uint32_t file_size = read_little_endian_uint32( buffer, pos + 4 ) + 8;
                 string_output << "WAV at pos=" << pos << " claims size=" << file_size << '\n';
 
                 if (pos + file_size > buffer.size()) {
@@ -564,16 +562,16 @@ namespace HDZUtils
                 }
 
                 size_t wavPos = pos;
-                wav_filename = "Assets/RAW/AUDIO/" + std::to_string(wav_count++) +
-                    "_" + (CurrentHeadDef ? CurrentHeadDef->RawID : "UNK") + ".wav";
+                wav_filename = "Assets/RAW/AUDIO/" + std::to_string( wav_count++ ) +
+                    "_" + ( CurrentHeadDef ? CurrentHeadDef->RawID : "UNK" ) + ".wav";
 
                 if (exportFiles) {
-                    std::ofstream output(wav_filename, std::ios::binary);
+                    std::ofstream output( wav_filename, std::ios::binary );
                     if (!output) {
                         std::cerr << "Error: Could not create " << wav_filename << "\n";
                         return;
                     }
-                    output.write(reinterpret_cast<const char*>(&buffer[pos]), file_size);
+                    output.write( reinterpret_cast<const char*>( &buffer[pos] ), file_size );
                     output.close();
                     std::cout << "Extracted Audio: " << wav_filename << "\n";
                 }
@@ -581,20 +579,20 @@ namespace HDZUtils
                 string_output << '[' << wavPos << "][" << file_size << ']' << wav_filename << "\n";
 
                 if (CurrentHeadDef)
-                    CurrentHeadDef->AssociatedAudioFiles.push_back(wav_filename);
+                    CurrentHeadDef->AssociatedAudioFiles.push_back( wav_filename );
 
                 // *** NEW: Fill region with marker byte, keep RIFF header visible ***
                 if (file_size >= 4) {
                     // Preserve first 4 bytes ("RIFF")
-                    memcpy(&mutated_buffer[pos], "RIFF", 4);
+                    memcpy( &mutated_buffer[pos], "RIFF", 4 );
                     // Fill the rest with 0xAA
-                    std::fill(mutated_buffer.begin() + pos + 4,
+                    std::fill( mutated_buffer.begin() + pos + 4,
                         mutated_buffer.begin() + pos + file_size,
-                        0xAA);
+                        0xAA );
                 }
 
                 CharacterID = "Unknown";
-                pixelImage.SetPixelRange(pos, pos + file_size - 5000, PixelCategory::WAVFile);
+                pixelImage.SetPixelRange( pos, pos + file_size - 5000, PixelCategory::WAVFile );
 
                 if (file_size > maxFileSize) {
                     maxFileSize = file_size;
@@ -603,33 +601,33 @@ namespace HDZUtils
                 }
 
                 if (lastWAV != pos) {
-                    writeBytesToFile(buffer, lastWAV, pos,
+                    writeBytesToFile( buffer, lastWAV, pos,
                         "Assets/RAW/SUS_" +
-                        (CurrentHeadDef ? CurrentHeadDef->RawID : "UNK") + ".bin");
+                        ( CurrentHeadDef ? CurrentHeadDef->RawID : "UNK" ) + ".bin" );
                 }
                 lastWAV = pos + file_size;
             }
 
             // BMP extraction
-            std::string textureOutput = "Assets/RAW/TEXTURES/" + std::to_string(bmp_count) + ".bmp";
+            std::string textureOutput = "Assets/RAW/TEXTURES/" + std::to_string( bmp_count ) + ".bmp";
             size_t bmp_size = 0;
-            if (extractAndWriteBMP(buffer, pos, textureOutput, bmp_size, exportFiles)) {
+            if (extractAndWriteBMP( buffer, pos, textureOutput, bmp_size, exportFiles )) {
                 if (!bmpArraySizePosCheck)
                 {
                     bmpArraySizePosCheck = true;
                     //ME_ASSERT(pos - 0x7E == 3);
                 }
                 if (CurrentHeadDef)
-                    CurrentHeadDef->HeadPortraits.push_back(textureOutput);
+                    CurrentHeadDef->HeadPortraits.push_back( textureOutput );
                 if (pos + bmp_size < pixelImage.GetLength())
-                    pixelImage.SetPixelRange(pos, pos + bmp_size, PixelCategory::BMPFile);
+                    pixelImage.SetPixelRange( pos, pos + bmp_size, PixelCategory::BMPFile );
 
                 // *** NEW: Fill texture region with visible marker, keep "BM" header ***
                 if (bmp_size >= 2) {
-                    memcpy(&mutated_buffer[pos], "BM", 2); // Keep "BM" header
-                    std::fill(mutated_buffer.begin() + pos + 2,
+                    memcpy( &mutated_buffer[pos], "BM", 2 ); // Keep "BM" header
+                    std::fill( mutated_buffer.begin() + pos + 2,
                         mutated_buffer.begin() + pos + bmp_size,
-                        0xBB); // Different byte than WAV for easy distinction
+                        0xBB ); // Different byte than WAV for easy distinction
                 }
 
                 bmp_count++;
@@ -647,34 +645,34 @@ namespace HDZUtils
                     size_t end = start;
 
                     HeadDef newDef;
-                    ParseHeadStrings(buffer, start, newDef);
-                    outHeadList.push_back(std::move(newDef));
+                    ParseHeadStrings( buffer, start, newDef );
+                    outHeadList.push_back( std::move( newDef ) );
                     CurrentHeadDef = &outHeadList.back();
                     CharacterID = CurrentHeadDef->ID;
                     CurrentHeadDef->CharacterIndex = character_num;
 
-                    pixelImage.SetPixelRange(start, end, PixelCategory::CharacterName);
+                    pixelImage.SetPixelRange( start, end, PixelCategory::CharacterName );
                     character_num++;
                 }
             }
 
             ++pos;
         }
+#endif
 
         string_output.close();
 
         // Write out the mutated visualization file
         std::string visualized_filename = input_filename + ".visualized.bin";
-        std::ofstream viz_out(visualized_filename, std::ios::binary);
+        std::ofstream viz_out( visualized_filename, std::ios::binary );
         if (viz_out) {
-            viz_out.write(reinterpret_cast<const char*>(mutated_buffer.data()), mutated_buffer.size());
+            viz_out.write( reinterpret_cast<const char*>( mutated_buffer.data() ), mutated_buffer.size() );
             viz_out.close();
             std::cout << "Created visualized file: " << visualized_filename << "\n";
         }
         else {
             std::cerr << "Error: Could not create " << visualized_filename << "\n";
         }
-#endif
     }
 
 
@@ -682,15 +680,15 @@ namespace HDZUtils
     void parse_map_file( const std::vector<Path>& inFiles )
     {
         std::ofstream string_output( "Assets/RAW/map_log.txt" );
-        if( !string_output )
+        if (!string_output)
         {
             std::cerr << "Error: Could not create map_log.txt\n";
             return;
         }
-        for( auto& path : inFiles )
+        for (auto& path : inFiles)
         {
             std::ifstream input( path.FullPath, std::ios::binary );
-            if( !input )
+            if (!input)
             {
                 std::cerr << "Error: Could not open " << path.GetLocalPathString() << "\n";
                 return;
@@ -705,13 +703,13 @@ namespace HDZUtils
             size_t wavPos = 0;
 
             std::string CharacterID;
-            while( pos < buffer.size() )
+            while (pos < buffer.size())
             {
-                if( is_wav_header( buffer, pos ) )
+                if (is_wav_header( buffer, pos ))
                 {
                     //ME_ASSERT_MSG( !CharacterID.empty(), "Parsing a wav file before we found a valid character entry.");
                     uint32_t file_size = read_little_endian_uint32( buffer, pos + 4 ) + 8; // RIFF chunk size + header
-                    if( pos + file_size > buffer.size() )
+                    if (pos + file_size > buffer.size())
                     {
                         std::cerr << "Warning: Incomplete WAV file detected. Skipping.\n";
                         break;
@@ -719,7 +717,7 @@ namespace HDZUtils
                     wavPos = pos;
                     wav_filename = "Assets/RAW/AUDIO/" + path.GetFileNameString( false ) + "_" + std::to_string( wav_count++ ) + ".wav";
                     std::ofstream output( wav_filename, std::ios::binary );
-                    if( !output )
+                    if (!output)
                     {
                         std::cerr << "Error: Could not create " << wav_filename << "\n";
                         return;
@@ -736,7 +734,7 @@ namespace HDZUtils
 
                 std::string textureOutput = std::string( "Assets/RAW/TEXTURES/" + path.GetFileNameString( false ) + "_" + std::to_string( bmp_count ) + ".bmp" );
                 size_t size = 0;
-                if( extractAndWriteBMP( buffer, pos, textureOutput, size ) )
+                if (extractAndWriteBMP( buffer, pos, textureOutput, size ))
                 {
                     string_output << '[' << pos << "] Exported Texture: " << textureOutput << "\n";
                     bmp_count++;
@@ -773,7 +771,7 @@ namespace HDZUtils
     {"XMI", {'M', 'T', 'h', 'd'}},
     };
 
-// Valid MP3 bitrates for MPEG-1 Layer III (index 1-14 valid)
+    // Valid MP3 bitrates for MPEG-1 Layer III (index 1-14 valid)
     const uint32_t mp3Bitrates[] = { 0, 32000, 40000, 48000, 56000, 64000, 80000, 96000,
                                    112000, 128000, 160000, 192000, 224000, 256000, 320000 };
 
@@ -783,29 +781,29 @@ namespace HDZUtils
     // Function to validate MP3 headers
     bool isValidMP3Header( const std::vector<uint8_t>& buffer, size_t pos )
     {
-        if( pos + 4 >= buffer.size() ) return false;
+        if (pos + 4 >= buffer.size()) return false;
 
         uint32_t header = ( buffer[pos] << 24 ) | ( buffer[pos + 1] << 16 ) |
             ( buffer[pos + 2] << 8 ) | buffer[pos + 3];
 
-// Sync word should be 0xFFE (11 bits set)
-        if( ( header & 0xFFE00000 ) != 0xFFE00000 ) return false;
+        // Sync word should be 0xFFE (11 bits set)
+        if (( header & 0xFFE00000 ) != 0xFFE00000) return false;
 
         // MPEG version (must be 1, 2, or 2.5)
         uint8_t mpegVersion = ( header >> 19 ) & 0x3;
-        if( mpegVersion == 1 ) return false; // Invalid
+        if (mpegVersion == 1) return false; // Invalid
 
         // Layer (must be 1, 2, or 3)
         uint8_t layer = ( header >> 17 ) & 0x3;
-        if( layer != 1 ) return false; // Must be Layer III
+        if (layer != 1) return false; // Must be Layer III
 
         // Bitrate index (must be valid)
         uint8_t bitrateIndex = ( header >> 12 ) & 0xF;
-        if( bitrateIndex == 0 || bitrateIndex == 15 ) return false; // Invalid
+        if (bitrateIndex == 0 || bitrateIndex == 15) return false; // Invalid
 
         // Sample rate index (must be valid)
         uint8_t sampleRateIndex = ( header >> 10 ) & 0x3;
-        if( sampleRateIndex == 3 ) return false; // Invalid
+        if (sampleRateIndex == 3) return false; // Invalid
 
         return true;
     }
@@ -814,23 +812,23 @@ namespace HDZUtils
     {
         std::vector<AudioFile> foundFiles;
 
-        for( size_t i = 0; i < buffer.size(); ++i )
+        for (size_t i = 0; i < buffer.size(); ++i)
         {
-            for( const auto& [format, signature] : knownHeaders )
+            for (const auto& [format, signature] : knownHeaders)
             {
-                if( i + signature.size() <= buffer.size() &&
-                    std::equal( signature.begin(), signature.end(), buffer.begin() + i ) )
+                if (i + signature.size() <= buffer.size() &&
+                    std::equal( signature.begin(), signature.end(), buffer.begin() + i ))
                 {
 
                     uint32_t estimatedLength = 0;
 
-                    if( format == "WAV" && i + 8 < buffer.size() )
+                    if (format == "WAV" && i + 8 < buffer.size())
                     {
                         estimatedLength = *reinterpret_cast<const uint32_t*>( &buffer[i + 4] ) + 8;
                     }
-                    else if( format == "MP3_MPEG" || format == "MP3_ID3" )
+                    else if (format == "MP3_MPEG" || format == "MP3_ID3")
                     {
-                        if( !isValidMP3Header( buffer, i ) ) continue;
+                        if (!isValidMP3Header( buffer, i )) continue;
                         estimatedLength = 512 * 1024; // Rough limit for MP3 extraction
                     }
 
@@ -845,7 +843,7 @@ namespace HDZUtils
 
     void extractAudioFiles( const std::string& filename, const std::vector<uint8_t>& buffer, const std::vector<AudioFile>& files )
     {
-        for( size_t i = 0; i < files.size(); ++i )
+        for (size_t i = 0; i < files.size(); ++i)
         {
             std::string outputFilename = "Assets/RAW/AUDIO/" + filename + "_" + files[i].format + "_" + std::to_string( i ) + "." +
                 ( files[i].format == "WAV" ? "wav" : "mp3" );
@@ -853,7 +851,7 @@ namespace HDZUtils
             uint32_t end = std::min( files[i].offset + files[i].length, static_cast<uint32_t>( buffer.size() ) );
 
             std::ofstream outFile( outputFilename, std::ios::binary );
-            if( !outFile )
+            if (!outFile)
             {
                 std::cerr << "Failed to write file: " << outputFilename << std::endl;
                 continue;
@@ -870,11 +868,11 @@ namespace HDZUtils
     std::vector<uint32_t> findAudioOffsets( const std::vector<uint8_t>& buffer )
     {
         std::vector<uint32_t> offsets;
-        for( size_t i = 0; i < buffer.size() - 4; ++i )
+        for (size_t i = 0; i < buffer.size() - 4; ++i)
         {
-            for( const auto& [format, signature] : audioHeaders )
+            for (const auto& [format, signature] : audioHeaders)
             {
-                if( std::equal( signature.begin(), signature.end(), buffer.begin() + i ) )
+                if (std::equal( signature.begin(), signature.end(), buffer.begin() + i ))
                 {
                     offsets.push_back( i );
                 }
@@ -888,21 +886,21 @@ namespace HDZUtils
     {
         std::vector<uint32_t> offsets;
 
-        for( size_t i = 0; i < buffer.size() - 512; i += 512 )
+        for (size_t i = 0; i < buffer.size() - 512; i += 512)
         { // Step in chunks of 512 bytes
             bool structured = true;
 
             // Check for repeating low-entropy patterns (common in ADPCM)
-            for( size_t j = 0; j < 512; ++j )
+            for (size_t j = 0; j < 512; ++j)
             {
-                if( buffer[i + j] > 127 && buffer[i + j] < 255 )
+                if (buffer[i + j] > 127 && buffer[i + j] < 255)
                 {
                     structured = false;
                     break;
                 }
             }
 
-            if( structured ) offsets.push_back( i );
+            if (structured) offsets.push_back( i );
         }
         return offsets;
     }
@@ -910,14 +908,14 @@ namespace HDZUtils
     // Extract detected audio files
     void extractAudioFilesNEW( const std::string& filename, const std::vector<uint8_t>& buffer, const std::vector<uint32_t>& offsets, const std::string& format )
     {
-        for( size_t i = 0; i < offsets.size(); ++i )
+        for (size_t i = 0; i < offsets.size(); ++i)
         {
             uint32_t start = offsets[i];
             uint32_t end = ( i + 1 < offsets.size() ) ? offsets[i + 1] : buffer.size();
 
             std::string outputFilename = "Assets/RAW/AUDIO/" + filename + "_extracted_" + format + "_" + std::to_string( i ) + ".dat";
             std::ofstream outFile( outputFilename, std::ios::binary );
-            if( !outFile )
+            if (!outFile)
             {
                 std::cerr << "Failed to write file: " << outputFilename << std::endl;
                 continue;
@@ -931,7 +929,7 @@ namespace HDZUtils
     int scanAndExtractAudioFiles( Path& inPath )
     {
         std::ifstream file( inPath.FullPath, std::ios::binary );
-        if( !file )
+        if (!file)
         {
             std::cerr << "Error opening file: " << inPath.FullPath << std::endl;
             return 1;
